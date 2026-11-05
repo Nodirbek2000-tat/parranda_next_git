@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useState } from "react";
-import { ClipboardCheck, ClipboardPlus } from "lucide-react";
+import { ClipboardCheck, ClipboardPlus, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { CATEGORY_LABELS, entries, formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { useForm } from "@/lib/form";
@@ -11,7 +11,7 @@ import { usePagedApi } from "@/lib/use-api";
 import type { InventoryCount, InventoryCountShort, InventoryCreatePayload, InventoryStatus } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useConfirmedAction } from "@/components/ui/confirm";
 import { DataTable, type Column } from "@/components/ui/data-table";
@@ -26,6 +26,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Summary } from "@/components/ui/summary";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
+import { canDeleteInventory, useDeleteInventory } from "./use-delete-inventory";
 
 const PAGE_SIZE = 20;
 type TabKey = "all" | InventoryStatus;
@@ -112,6 +113,8 @@ export function InventoryList() {
   const raw = params.get("status");
   const tab: TabKey = isTab(raw) ? raw : "all";
   const [creating, setCreating] = useState(false);
+  const { user } = useAuth();
+  const deleteCount = useDeleteInventory();
   const list = usePagedApi<InventoryCountShort>(
     "/inventory-counts",
     { status: tab === "all" ? undefined : tab },
@@ -173,6 +176,13 @@ export function InventoryList() {
               rowKey={(row) => row.id}
               rowHref={(row) => `/warehouse/inventory/${row.id}`}
               stale={list.loading}
+              actions={(row) =>
+                canDeleteInventory(row, user?.role) ? (
+                  <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteCount(row)}>
+                    <Trash2 className="size-4" aria-hidden />
+                  </IconButton>
+                ) : null
+              }
             />
             <Pagination page={list.page} count={data.count} pageSize={PAGE_SIZE} onPageChange={list.setPage} disabled={list.loading} />
           </>

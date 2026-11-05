@@ -2,14 +2,14 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
-import { Play, Workflow } from "lucide-react";
+import { Play, Trash2, Workflow } from "lucide-react";
 import { api, toApiError, type FieldErrors } from "@/lib/api";
 import type { HouseholdRef, ProcessRun, ProcessRunStatus } from "@/lib/builder-types";
 import { formatDateTime } from "@/lib/format";
 import { usePagedApi } from "@/lib/use-api";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -25,6 +25,7 @@ import { useUrlParams } from "@/components/stats/period-picker";
 import { useUsableBlueprints } from "../work/blueprints";
 import { HouseholdPicker } from "../work/pickers";
 import { PROCESS_STATUS } from "../work/status";
+import { PROCESS_DELETE_HINT, useProcessDelete } from "./use-process-delete";
 
 const PAGE_SIZE = 30;
 const STATUSES = Object.keys(PROCESS_STATUS) as ProcessRunStatus[];
@@ -85,6 +86,7 @@ export function ProcessList() {
   const params = useSearchParams();
   const setParams = useUrlParams();
   const [starting, setStarting] = useState(false);
+  const { canDelete, deleteRun } = useProcessDelete();
   const statusParam = params.get("status") ?? "";
   const status = STATUSES.includes(statusParam as ProcessRunStatus) ? statusParam : "";
   const list = usePagedApi<ProcessRun>("/process-runs", { status }, PAGE_SIZE);
@@ -143,6 +145,20 @@ export function ProcessList() {
               columns={COLUMNS}
               rowKey={(row) => row.id}
               rowHref={(row) => `/processes/${row.id}`}
+              actions={
+                canDelete
+                  ? (row) =>
+                      row.status === "RUNNING" ? (
+                        <IconButton label={`${row.code}: o‘chirish — ${PROCESS_DELETE_HINT.toLowerCase()}`} tone="quiet-danger" disabled>
+                          <Trash2 className="size-4" aria-hidden />
+                        </IconButton>
+                      ) : (
+                        <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteRun(row)}>
+                          <Trash2 className="size-4" aria-hidden />
+                        </IconButton>
+                      )
+                  : undefined
+              }
               stale={list.loading}
             />
             <Pagination page={list.page} count={data.count} pageSize={PAGE_SIZE} onPageChange={list.setPage} disabled={list.loading} />

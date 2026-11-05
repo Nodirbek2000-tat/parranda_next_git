@@ -2,14 +2,14 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { ListTodo, Plus } from "lucide-react";
+import { ListTodo, Plus, Trash2 } from "lucide-react";
 import { useCurrentUser } from "@/lib/auth";
 import type { Task, TaskCounts, TaskStatus } from "@/lib/builder-types";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/format";
 import { useApi, useDebounced, usePagedApi } from "@/lib/use-api";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -24,6 +24,7 @@ import { Tabs, type TabItem } from "@/components/ui/tabs";
 import { useUrlParams } from "@/components/stats/period-picker";
 import { WORK_TASK_STATUS } from "../work/status";
 import { TaskCreateModal } from "./task-create-modal";
+import { useTaskDelete } from "./use-task-delete";
 
 const PAGE_SIZE = 30;
 
@@ -90,6 +91,7 @@ export function TaskList() {
   const params = useSearchParams();
   const setParams = useUrlParams();
   const [creating, setCreating] = useState(false);
+  const { canDelete, deleteTask } = useTaskDelete();
 
   const counts = useApi<TaskCounts>("/tasks/counts");
   const toApprove = counts.data?.to_approve ?? 0;
@@ -191,6 +193,15 @@ export function TaskList() {
               columns={TASK_COLUMNS}
               rowKey={(row) => row.id}
               rowHref={(row) => `/tasks/${row.id}`}
+              actions={
+                canDelete
+                  ? (row) => (
+                      <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteTask(row)}>
+                        <Trash2 className="size-4" aria-hidden />
+                      </IconButton>
+                    )
+                  : undefined
+              }
               stale={list.loading}
             />
             <Pagination page={list.page} count={data.count} pageSize={PAGE_SIZE} onPageChange={setPage} disabled={list.loading} />

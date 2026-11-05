@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
-import { AlarmClock, CalendarDays, CheckCheck, PackageCheck, Plus, Timer, Truck, UserRound } from "lucide-react";
+import { AlarmClock, CalendarDays, CheckCheck, PackageCheck, Plus, Timer, Trash2, Truck, UserRound } from "lucide-react";
 import { useCurrentUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { formatDate, formatHours, formatNumber, formatPercent } from "@/lib/format";
@@ -11,7 +11,7 @@ import { TASK_STATUS } from "@/lib/status";
 import { useApi, useDebounced, usePagedApi } from "@/lib/use-api";
 import type { LogisticsSummary, LogisticsTask, Paginated } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -25,6 +25,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Tabs } from "@/components/ui/tabs";
 import { BOARD_STATUSES, DONE_STATUSES, itemsSummary, plannedText, TaskStatusBadge, totalKgText, type BoardStatus } from "./shared";
 import { TaskCreateModal } from "./task-create-modal";
+import { canDeleteTask, useDeleteTask } from "./use-delete-task";
 
 const BOARD_LIMIT = 200;
 const ARCHIVE_PAGE = 25;
@@ -329,6 +330,8 @@ function SummaryRow({
 }
 
 function ColumnCards({ tasks, stale }: { tasks: readonly LogisticsTask[]; stale: boolean }) {
+  const user = useCurrentUser();
+  const deleteTask = useDeleteTask();
   if (tasks.length === 0) {
     return <p className="rounded-lg border border-dashed border-line px-3 py-6 text-center text-[13px] text-muted">Bo‘sh</p>;
   }
@@ -336,22 +339,23 @@ function ColumnCards({ tasks, stale }: { tasks: readonly LogisticsTask[]; stale:
     <ul className={cn("flex flex-col gap-2 transition-opacity", stale && "opacity-60")}>
       {tasks.map((task) => (
         <li key={task.id}>
-          <TaskCard task={task} />
+          <TaskCard task={task} onDelete={canDeleteTask(task, user.role) ? () => deleteTask(task) : undefined} />
         </li>
       ))}
     </ul>
   );
 }
 
-export function TaskCard({ task, href }: { task: LogisticsTask; href?: string }) {
+export function TaskCard({ task, href, onDelete }: { task: LogisticsTask; href?: string; onDelete?: () => void }) {
   const kg = totalKgText(task);
-  return (
+  const card = (
     <Link
       href={href ?? `/logistics/${task.id}`}
       className={cn(
         "block rounded-xl border bg-surface p-3 shadow-card transition-colors hover:border-line-strong",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         task.is_overdue ? "border-danger/40" : "border-line",
+        onDelete && "pr-11",
       )}
     >
       <div className="flex items-center justify-between gap-2">
@@ -380,6 +384,20 @@ export function TaskCard({ task, href }: { task: LogisticsTask; href?: string })
       </div>
     </Link>
   );
+  if (!onDelete) return card;
+  return (
+    <div className="relative">
+      {card}
+      <IconButton
+        label={`${task.code}: o‘chirish`}
+        tone="quiet-danger"
+        onClick={onDelete}
+        className="absolute right-1.5 top-1/2 -translate-y-1/2"
+      >
+        <Trash2 className="size-4" aria-hidden />
+      </IconButton>
+    </div>
+  );
 }
 
 function BoardSkeleton() {
@@ -403,6 +421,8 @@ function Archive({ filters, filtered }: { filters: Record<string, string | numbe
     ARCHIVE_PAGE,
   );
   const data = list.data;
+  const user = useCurrentUser();
+  const deleteTask = useDeleteTask();
   const columns: Column<LogisticsTask>[] = [
     {
       key: "code",
@@ -452,6 +472,16 @@ function Archive({ filters, filtered }: { filters: Record<string, string | numbe
             rowKey={(task) => task.id}
             rowHref={(task) => `/logistics/${task.id}`}
             stale={list.loading}
+            actions={
+              user.role === "ADMIN"
+                ? (task) =>
+                    canDeleteTask(task, user.role) ? (
+                      <IconButton label={`${task.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteTask(task)}>
+                        <Trash2 className="size-4" aria-hidden />
+                      </IconButton>
+                    ) : null
+                : undefined
+            }
           />
           <Pagination page={list.page} count={data.count} pageSize={ARCHIVE_PAGE} onPageChange={list.setPage} disabled={list.loading} />
         </>

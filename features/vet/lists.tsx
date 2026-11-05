@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { Ban, CheckCheck, ClipboardList, Eye, Pencil, Pill, Stethoscope, Syringe, Bug } from "lucide-react";
+import { Ban, CheckCheck, ClipboardList, Eye, Pencil, Pill, Stethoscope, Syringe, Bug, Trash2 } from "lucide-react";
 import type { Query } from "@/lib/api";
 import { formatDate, formatNumber, formatQuantity } from "@/lib/format";
 import { DISEASE_STATUS, HEALTH_STATUS, VET_VISIT_STATUS } from "@/lib/status";
@@ -22,6 +22,7 @@ import { useUrlParams } from "@/components/stats/period-picker";
 import { DiseaseDetailModal } from "./disease-detail";
 import { TreatmentUpdateModal, VaccinationCompleteModal, VaccinationFormModal } from "./forms";
 import { HouseholdLink, PlannedDate, ReasonModal, useVetRole, vetName } from "./shared";
+import { useVetDelete } from "./use-vet-delete";
 
 const PAGE_SIZE = 20;
 
@@ -128,6 +129,7 @@ const PLAN_STATUS_OPTIONS = [
 
 export function VisitList({ householdId, embedded = false }: { householdId?: number; embedded?: boolean }) {
   const { isVet } = useVetRole();
+  const { canDelete, deleteVisit } = useVetDelete();
   const filters = useListFilters(embedded);
   const query: Query = {
     household: householdId,
@@ -170,6 +172,13 @@ export function VisitList({ householdId, embedded = false }: { householdId?: num
       emptyTitle="Tekshiruvlar hali rejalashtirilmagan"
       emptyIcon={Stethoscope}
       rowHref={(row) => `/vet/visits/${row.id}`}
+      actions={(row) =>
+        canDelete(row) ? (
+          <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteVisit(row)}>
+            <Trash2 className="size-4" aria-hidden />
+          </IconButton>
+        ) : null
+      }
       filtered={filters.filtered}
       toolbar={
         embedded ? undefined : (
@@ -196,6 +205,7 @@ type VaccinationDialog = { kind: "complete" | "edit" | "cancel"; row: Vaccinatio
 
 export function VaccinationList({ householdId, batchId, embedded = false }: { householdId?: number; batchId?: number; embedded?: boolean }) {
   const { isVet } = useVetRole();
+  const { canDelete, deleteVaccination } = useVetDelete();
   const filters = useListFilters(embedded);
   const params = useSearchParams();
   const [dialog, setDialog] = useState<VaccinationDialog>(null);
@@ -289,6 +299,11 @@ export function VaccinationList({ householdId, batchId, embedded = false }: { ho
                 <Ban className="size-4" aria-hidden />
               </IconButton>
             )}
+            {canDelete(row) && (
+              <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteVaccination(row)}>
+                <Trash2 className="size-4" aria-hidden />
+              </IconButton>
+            )}
           </>
         )}
         toolbar={
@@ -338,6 +353,7 @@ const DISEASE_STATUS_OPTIONS = [
 
 export function DiseaseList({ householdId, embedded = false }: { householdId?: number; embedded?: boolean }) {
   const filters = useListFilters(embedded);
+  const { canDelete, deleteDisease } = useVetDelete();
   const params = useSearchParams();
   const active = !embedded && params.get("active") === "1";
   const [openId, setOpenId] = useState<number | null>(null);
@@ -377,9 +393,16 @@ export function DiseaseList({ householdId, embedded = false }: { householdId?: n
         emptyIcon={Bug}
         filtered={filters.filtered || active}
         actions={(row) => (
-          <IconButton label={`${row.code}: batafsil va davolash`} onClick={() => setOpenId(row.id)}>
-            <Eye className="size-4" aria-hidden />
-          </IconButton>
+          <>
+            <IconButton label={`${row.code}: batafsil va davolash`} onClick={() => setOpenId(row.id)}>
+              <Eye className="size-4" aria-hidden />
+            </IconButton>
+            {canDelete(row) && (
+              <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteDisease(row)}>
+                <Trash2 className="size-4" aria-hidden />
+              </IconButton>
+            )}
+          </>
         )}
         toolbar={
           embedded ? undefined : (

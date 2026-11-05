@@ -1,7 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { AlertTriangle, Ban, PackageCheck, Truck } from "lucide-react";
+import { AlertTriangle, Ban, PackageCheck, Trash2, Truck } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { formatDate, formatDateTime, formatQuantity } from "@/lib/format";
@@ -20,12 +21,16 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Summary } from "@/components/ui/summary";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmReceiptModal, OrderHistory, OrderStepper, ReasonModal, finalNote } from "./order-parts";
+import { canDeleteOrder, useDeleteOrder } from "./use-delete-order";
 
 type Dialog = "cancel" | "received" | "problem" | null;
 
 /** /my/orders/[id] — the owner's order: stepper, items, delivery, cancel (NEW), receipt confirmation (V3 §15.3). */
 export function MyOrderDetail({ id }: { id: string }) {
   const toast = useToast();
+  const router = useRouter();
+  // silent delete: this page must not refetch (404) before we leave it; the list loads fresh.
+  const deleteOrder = useDeleteOrder(() => router.replace("/my/orders"));
   const [dialog, setDialog] = useState<Dialog>(null);
   const order = useApi<Order>(`/orders/${id}`);
   const data = order.data;
@@ -198,10 +203,19 @@ export function MyOrderDetail({ id }: { id: string }) {
         </CardBody>
       </Card>
 
-      {can("cancel") && (
-        <Button variant="secondary" icon={<Ban className="size-4" aria-hidden />} onClick={() => setDialog("cancel")} className="self-start">
-          Buyurtmani bekor qilish
-        </Button>
+      {(can("cancel") || canDeleteOrder(data, "OWNER")) && (
+        <div className="flex flex-wrap gap-2">
+          {can("cancel") && (
+            <Button variant="secondary" icon={<Ban className="size-4" aria-hidden />} onClick={() => setDialog("cancel")}>
+              Buyurtmani bekor qilish
+            </Button>
+          )}
+          {canDeleteOrder(data, "OWNER") && (
+            <Button variant="danger" icon={<Trash2 className="size-4" aria-hidden />} onClick={() => deleteOrder(data)}>
+              O‘chirish
+            </Button>
+          )}
+        </div>
       )}
 
       {dialog === "cancel" && (

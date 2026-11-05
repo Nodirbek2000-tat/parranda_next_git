@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
-import { Ban, Circle, CircleCheck, CircleDot, CircleX, Workflow } from "lucide-react";
+import { Ban, Circle, CircleCheck, CircleDot, CircleX, Trash2, Workflow } from "lucide-react";
 import { api } from "@/lib/api";
 import { useCurrentUser } from "@/lib/auth";
 import type { ProcessRun } from "@/lib/builder-types";
@@ -23,6 +24,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Summary, type SummaryItem } from "@/components/ui/summary";
 import { useToast } from "@/components/ui/toast";
 import { PROCESS_STATUS, WORK_TASK_STATUS } from "../work/status";
+import { PROCESS_DELETE_HINT, useProcessDelete } from "./use-process-delete";
 
 type Stage = ProcessRun["stages"][number];
 
@@ -38,6 +40,8 @@ export function ProcessDetail({ id }: { id: string }) {
   const user = useCurrentUser();
   const confirm = useConfirm();
   const toast = useToast();
+  const router = useRouter();
+  const runDelete = useProcessDelete(() => router.replace("/processes"));
   const run = useApi<ProcessRun>(`/process-runs/${id}`);
   const data = run.data;
   const isAdmin = user.role === "ADMIN";
@@ -125,10 +129,25 @@ export function ProcessDetail({ id }: { id: string }) {
         }
         description={[data.code, data.household ? `${data.household.code} ${data.household.name}` : null].filter(Boolean).join(" · ")}
         actions={
-          isAdmin && data.status === "RUNNING" ? (
-            <Button variant="secondary" icon={<Ban className="size-4" aria-hidden />} onClick={cancel}>
-              Bekor qilish
-            </Button>
+          isAdmin ? (
+            <>
+              {data.status === "RUNNING" && (
+                <Button variant="secondary" icon={<Ban className="size-4" aria-hidden />} onClick={cancel}>
+                  Bekor qilish
+                </Button>
+              )}
+              {runDelete.canDelete && (
+                <Button
+                  variant="danger"
+                  icon={<Trash2 className="size-4" aria-hidden />}
+                  disabled={data.status === "RUNNING"}
+                  title={data.status === "RUNNING" ? PROCESS_DELETE_HINT : undefined}
+                  onClick={() => runDelete.deleteRun(data)}
+                >
+                  O‘chirish
+                </Button>
+              )}
+            </>
           ) : undefined
         }
       />

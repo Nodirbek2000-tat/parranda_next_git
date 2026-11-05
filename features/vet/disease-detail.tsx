@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Pill } from "lucide-react";
+import { Pencil, Pill, Trash2 } from "lucide-react";
 import { formatDate, formatNumber } from "@/lib/format";
 import { DISEASE_STATUS } from "@/lib/status";
 import { useApi } from "@/lib/use-api";
@@ -15,12 +15,16 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DiseaseUpdateModal, TreatmentFormModal } from "./forms";
 import { HouseholdLink, Info, TextBlock, vetName } from "./shared";
+import { useVetDelete } from "./use-vet-delete";
 
 /** Disease record with its treatments (`GET /api/vet/diseases/{id}`), “Holatni o‘zgartirish” and “Davolash”. */
 export function DiseaseDetailModal({ id, onClose, owner = false }: { id: number; onClose: () => void; owner?: boolean }) {
   const detail = useApi<DiseaseRecord>(`/vet/diseases/${id}`);
   const [dialog, setDialog] = useState<"update" | "treat" | null>(null);
+  const { canDelete, deleteDisease } = useVetDelete();
   const row = detail.data;
+  // Owners (/my/vet) never delete; staff by role and ownership (the server decides finally).
+  const deletable = !owner && row !== undefined && canDelete(row);
 
   if (dialog === "update" && row) {
     return <DiseaseUpdateModal disease={row} onClose={() => setDialog(null)} onDone={() => setDialog(null)} />;
@@ -36,8 +40,13 @@ export function DiseaseDetailModal({ id, onClose, owner = false }: { id: number;
       onClose={onClose}
       size="lg"
       footer={
-        row && row.allowed_actions.length > 0 ? (
+        row && (row.allowed_actions.length > 0 || deletable) ? (
           <>
+            {deletable && (
+              <Button variant="danger" icon={<Trash2 className="size-4" aria-hidden />} onClick={() => deleteDisease(row, { onDeleted: onClose })}>
+                O‘chirish
+              </Button>
+            )}
             {row.allowed_actions.includes("update") && (
               <Button variant="secondary" icon={<Pencil className="size-4" aria-hidden />} onClick={() => setDialog("update")}>
                 Holatni o‘zgartirish

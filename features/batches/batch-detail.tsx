@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { ArrowRightLeft, Bird, House, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRightLeft, Bird, House, Pencil, Trash2 } from "lucide-react";
 import { formatDate, formatDateTime, formatNumber, formatPercent } from "@/lib/format";
 import { CHART_COLORS, DEFAULT_PRESETS, mortalityTone, POULTRY_COLORS } from "@/lib/stats";
 import type { ApiError } from "@/lib/api";
@@ -26,6 +27,7 @@ import { movementColumns } from "../movements/movement-columns";
 import { MovementModal } from "../movements/movement-modal";
 import { PagedTableCard } from "../paged-table-card";
 import { BatchEditModal } from "./batch-edit-modal";
+import { useDeleteBatch } from "./use-delete-batch";
 import { BatchVaccinationHistory } from "../vet/household-vet-section";
 
 type HouseholdRow = BatchStats["households"][number];
@@ -83,6 +85,9 @@ function BatchDetailInner({ id }: { id: string }) {
   const period = usePeriodQuery();
   const stats = useApi<BatchStats>(`/batches/${id}/stats`, { ...period });
   const [dialog, setDialog] = useState<Dialog>(null);
+  const router = useRouter();
+  // silent delete: this page must not refetch (404) before we leave it; the list loads fresh.
+  const deleteBatch = useDeleteBatch(() => router.replace("/batches"));
   const data = stats.data;
 
   if (!data) {
@@ -156,6 +161,13 @@ function BatchDetailInner({ id }: { id: string }) {
                 onClick={() => setDialog("edit")}
               >
                 Tahrirlash
+              </Button>
+              <Button
+                variant="danger"
+                icon={<Trash2 className="size-4" aria-hidden />}
+                onClick={() => deleteBatch({ id: batch.id, code: batch.code, center_stock: data?.totals.center_stock })}
+              >
+                O‘chirish
               </Button>
             </>
           )

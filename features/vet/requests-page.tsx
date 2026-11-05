@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { CalendarPlus, CheckCircle2, Hand, MessageSquareHeart, Paperclip } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Hand, MessageSquareHeart, Paperclip, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { collect, useForm } from "@/lib/form";
 import { formatDateTime } from "@/lib/format";
@@ -11,7 +11,7 @@ import { useApi, usePagedApi } from "@/lib/use-api";
 import type { VetRequest, VetSummary } from "@/lib/types";
 import { AttachmentList } from "@/components/files/attachment-list";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -27,6 +27,7 @@ import { useToast } from "@/components/ui/toast";
 import { useUrlParams } from "@/components/stats/period-picker";
 import { VisitFormModal } from "./forms";
 import { HouseholdLink, Info, TextBlock, useVetRole, vetName } from "./shared";
+import { useVetDelete } from "./use-vet-delete";
 
 const PAGE_SIZE = 20;
 const TAB_KEYS = ["NEW", "IN_PROGRESS", "CLOSED", "ALL"] as const;
@@ -37,6 +38,7 @@ export function VetRequestsPage() {
   const params = useSearchParams();
   const setParams = useUrlParams();
   const summary = useApi<VetSummary>("/vet/summary");
+  const { canDeleteRequest, deleteRequest } = useVetDelete();
   const raw = params.get("status") ?? "NEW";
   const tab: TabKey = (TAB_KEYS as readonly string[]).includes(raw) ? (raw as TabKey) : "NEW";
   const openParam = Number(params.get("open") ?? "");
@@ -116,6 +118,15 @@ export function VetRequestsPage() {
               columns={columns}
               rowKey={(row) => row.id}
               rowHref={(row) => `/vet/requests?${new URLSearchParams({ ...(tab === "NEW" ? {} : { status: tab }), open: String(row.id) })}`}
+              actions={
+                canDeleteRequest
+                  ? (row) => (
+                      <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteRequest(row)}>
+                        <Trash2 className="size-4" aria-hidden />
+                      </IconButton>
+                    )
+                  : undefined
+              }
               stale={list.loading}
             />
             <Pagination page={list.page} count={data.count} pageSize={PAGE_SIZE} onPageChange={list.setPage} disabled={list.loading} />
@@ -133,6 +144,7 @@ export function RequestDetailModal({ id, onClose }: { id: number; onClose: () =>
   const detail = useApi<VetRequest>(`/vet/requests/${id}`);
   const [step, setStep] = useState<Step>("view");
   const { isOwner } = useVetRole();
+  const { canDeleteRequest, deleteRequest } = useVetDelete();
   const row = detail.data;
 
   if (row && step === "plan") {
@@ -158,8 +170,13 @@ export function RequestDetailModal({ id, onClose }: { id: number; onClose: () =>
       onClose={onClose}
       size="lg"
       footer={
-        row && actions.length > 0 && !isOwner ? (
+        row && (actions.length > 0 || canDeleteRequest) && !isOwner ? (
           <>
+            {canDeleteRequest && (
+              <Button variant="danger" icon={<Trash2 className="size-4" aria-hidden />} onClick={() => deleteRequest(row, { onDeleted: onClose })}>
+                O‘chirish
+              </Button>
+            )}
             {actions.includes("plan_visit") && (
               <Button variant="secondary" icon={<CalendarPlus className="size-4" aria-hidden />} onClick={() => setStep("plan")}>
                 Tekshiruv rejalashtirish

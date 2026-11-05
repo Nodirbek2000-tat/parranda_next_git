@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Ban, Bird, Bug, ClipboardCheck, Pencil, Stethoscope } from "lucide-react";
+import { Ban, Bird, Bug, ClipboardCheck, Pencil, Stethoscope, Trash2 } from "lucide-react";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { DISEASE_STATUS, HEALTH_STATUS, VET_VISIT_STATUS } from "@/lib/status";
 import { useApi } from "@/lib/use-api";
@@ -19,12 +20,15 @@ import { MovementModal } from "../movements/movement-modal";
 import { DiseaseDetailModal } from "./disease-detail";
 import { DiseaseFormModal, VisitCompleteModal, VisitFormModal } from "./forms";
 import { HouseholdLink, Info, PlannedDate, ReasonModal, TextBlock, useVetRole, vetName } from "./shared";
+import { useVetDelete } from "./use-vet-delete";
 
 type Dialog = "complete" | "edit" | "cancel" | "death" | "disease" | null;
 
 /** /vet/visits/[id] — plan, conclusion, cancel, deaths and diseases of one inspection (V3 §8.1, §8.6, §15.3). */
 export function VisitDetail({ id }: { id: string }) {
   const { isVet, isAdmin } = useVetRole();
+  const { canDelete, deleteVisit } = useVetDelete();
+  const router = useRouter();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [diseaseId, setDiseaseId] = useState<number | null>(null);
   const visit = useApi<VetVisit>(`/vet/visits/${id}`);
@@ -95,6 +99,16 @@ export function VisitDetail({ id }: { id: string }) {
             {actions.includes("cancel") && (
               <Button variant="ghost" icon={<Ban className="size-4" aria-hidden />} onClick={() => setDialog("cancel")}>
                 Bekor qilish
+              </Button>
+            )}
+            {canDelete(data) && (
+              <Button
+                variant="danger"
+                icon={<Trash2 className="size-4" aria-hidden />}
+                // silent: this page must not refetch (404) before we leave it; the list loads fresh.
+                onClick={() => deleteVisit(data, { silent: true, onDeleted: () => router.replace("/vet?tab=visits") })}
+              >
+                O‘chirish
               </Button>
             )}
           </>

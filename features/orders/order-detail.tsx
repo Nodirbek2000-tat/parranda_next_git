@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
-import { Ban, CheckCircle2, ClipboardCheck, ExternalLink, PackageCheck, Truck, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, ClipboardCheck, ExternalLink, PackageCheck, Trash2, Truck, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { useCurrentUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { collect, useForm } from "@/lib/form";
 import { formatDate, formatDateTime, formatNumber, formatQuantity, todayIso } from "@/lib/format";
@@ -26,6 +28,7 @@ import { Summary } from "@/components/ui/summary";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmReceiptModal, OrderHistory, ReasonModal, finalNote } from "./order-parts";
+import { canDeleteOrder, useDeleteOrder } from "./use-delete-order";
 import {
   EMPTY_TASK_FIELDS,
   TaskFields,
@@ -87,6 +90,10 @@ const ITEM_COLUMNS: Column<OrderItem>[] = [
 /** /orders/[id] — order detail for ADMIN (actions) and WAREHOUSE (read only), V3 §6, §15.3. */
 export function OrderDetail({ id }: { id: string }) {
   const toast = useToast();
+  const router = useRouter();
+  const user = useCurrentUser();
+  // silent delete: this page must not refetch (404) before we leave it; the list loads fresh.
+  const deleteOrder = useDeleteOrder(() => router.replace("/orders"));
   const [dialog, setDialog] = useState<Dialog>(null);
   const order = useApi<Order>(`/orders/${id}`);
   const data = order.data;
@@ -113,6 +120,7 @@ export function OrderDetail({ id }: { id: string }) {
   }
 
   const can = (action: Order["allowed_actions"][number]) => data.allowed_actions.includes(action);
+  const deletable = canDeleteOrder(data, user.role);
   const close = () => setDialog(null);
   const done = (message: string) => () => {
     setDialog(null);
@@ -151,6 +159,11 @@ export function OrderDetail({ id }: { id: string }) {
           Bekor qilish
         </Button>
       )}
+      {deletable && (
+        <Button variant="danger" icon={<Trash2 className="size-4" aria-hidden />} onClick={() => deleteOrder(data)}>
+          O‘chirish
+        </Button>
+      )}
     </>
   );
 
@@ -177,7 +190,7 @@ export function OrderDetail({ id }: { id: string }) {
             </Link>
           </span>
         }
-        actions={data.allowed_actions.length > 0 ? actions : undefined}
+        actions={data.allowed_actions.length > 0 || deletable ? actions : undefined}
       />
 
       {note && (

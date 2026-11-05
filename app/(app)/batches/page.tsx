@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRightLeft, Bird, Plus } from "lucide-react";
+import { ArrowRightLeft, Bird, Plus, Trash2 } from "lucide-react";
 import { entries, formatDate, formatNumber, MOVEMENT_TYPE_LABELS, POULTRY_TYPE_LABELS } from "@/lib/format";
 import { useDebounced, usePagedApi } from "@/lib/use-api";
 import type { Batch, Movement } from "@/lib/types";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -16,6 +16,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { BatchModal } from "@/features/batches/batch-modal";
+import { useDeleteBatch } from "@/features/batches/use-delete-batch";
 import { movementColumns } from "@/features/movements/movement-columns";
 import { MovementModal } from "@/features/movements/movement-modal";
 
@@ -62,6 +63,7 @@ export default function BatchesPage() {
   const [creating, setCreating] = useState(false);
   const [actionBatch, setActionBatch] = useState<Batch | null>(null);
   const debouncedSearch = useDebounced(search.trim());
+  const deleteBatch = useDeleteBatch();
 
   const batches = usePagedApi<Batch>(
     "/batches",
@@ -142,15 +144,20 @@ export default function BatchesPage() {
               rowHref={(row) => `/batches/${row.id}`}
               stale={batches.loading}
               actions={(row) => (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<ArrowRightLeft className="size-3.5" aria-hidden />}
-                  onClick={() => setActionBatch(row)}
-                  aria-label={`${row.code}: tarqatish, qaytarish, nobud yoki chiqim`}
-                >
-                  Amal
-                </Button>
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<ArrowRightLeft className="size-3.5" aria-hidden />}
+                    onClick={() => setActionBatch(row)}
+                    aria-label={`${row.code}: tarqatish, qaytarish, nobud yoki chiqim`}
+                  >
+                    Amal
+                  </Button>
+                  <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteBatch(row)}>
+                    <Trash2 className="size-4" aria-hidden />
+                  </IconButton>
+                </>
               )}
             />
             <Pagination page={page} count={data.count} pageSize={PAGE_SIZE} onPageChange={setPage} disabled={batches.loading} />

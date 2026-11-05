@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { ChevronRight, Plus, ShoppingCart } from "lucide-react";
+import { ChevronRight, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { ORDER_KIND_LABELS, ORDER_STATUS } from "@/lib/status";
 import { usePagedApi } from "@/lib/use-api";
 import type { Order } from "@/lib/types";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState, StaleDataError } from "@/components/ui/error-state";
@@ -21,6 +21,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { NewOrderModal } from "./new-order-modal";
 import { itemsSummary } from "./order-parts";
+import { canDeleteOrder, useDeleteOrder } from "./use-delete-order";
 
 const PAGE_SIZE = 20;
 const TABS = [
@@ -36,6 +37,7 @@ export function MyOrders() {
   const pathname = usePathname();
   const params = useSearchParams();
   const toast = useToast();
+  const deleteOrder = useDeleteOrder();
   const tab = (TABS.find((item) => item.key === params.get("tab"))?.key ?? "open") as TabKey;
   const openedFromLink = params.get("new") === "1";
   const [creating, setCreating] = useState(openedFromLink);
@@ -88,11 +90,11 @@ export function MyOrders() {
         <>
           <ul className={cn("flex flex-col gap-3 transition-opacity", list.loading && "opacity-60")}>
             {data.results.map((order) => (
-              <li key={order.id}>
+              <li key={order.id} className="flex items-center gap-2">
                 <Link
                   href={`/my/orders/${order.id}`}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl border border-line bg-surface p-4 shadow-card transition-colors",
+                    "flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface p-4 shadow-card transition-colors",
                     "hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                   )}
                 >
@@ -112,6 +114,11 @@ export function MyOrders() {
                   </div>
                   <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
                 </Link>
+                {canDeleteOrder(order, "OWNER") && (
+                  <IconButton label={`${order.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteOrder(order)}>
+                    <Trash2 className="size-4" aria-hidden />
+                  </IconButton>
+                )}
               </li>
             ))}
           </ul>

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Ban, CheckCheck, CircleAlert, ClipboardCheck, Loader2, Search } from "lucide-react";
+import { Ban, CheckCheck, CircleAlert, ClipboardCheck, Loader2, Search, Trash2 } from "lucide-react";
 import { api, toApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { INVENTORY_STATUS } from "@/lib/status";
@@ -23,6 +25,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Summary } from "@/components/ui/summary";
 import { useToast } from "@/components/ui/toast";
 import { Progress } from "./inventory-list";
+import { canDeleteInventory, useDeleteInventory } from "./use-delete-inventory";
 
 const SAVE_DELAY_MS = 800;
 const WHOLE_UNITS = new Set(["dona", "qop"]);
@@ -55,6 +58,10 @@ function signed(value: number, unit: string): string {
 export function InventorySheet({ id }: { id: string }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const router = useRouter();
+  const { user } = useAuth();
+  // silent delete: this page must not refetch (404) before we leave it; the list loads fresh.
+  const deleteCount = useDeleteInventory(() => router.replace("/warehouse/inventory"));
   const resource = useApi<InventoryCount>(`/inventory-counts/${id}`);
   const [local, setLocal] = useState<{ source: InventoryCount | undefined; value: InventoryCount } | null>(null);
   const count = local && local.source === resource.data ? local.value : resource.data;
@@ -297,6 +304,11 @@ export function InventorySheet({ id }: { id: string }) {
             {count.allowed_actions.includes("approve") && (
               <Button icon={<ClipboardCheck className="size-4" aria-hidden />} onClick={() => void approve()}>
                 Tasdiqlash
+              </Button>
+            )}
+            {canDeleteInventory(count, user?.role) && (
+              <Button variant="danger" icon={<Trash2 className="size-4" aria-hidden />} onClick={() => deleteCount(count)}>
+                O‘chirish
               </Button>
             )}
           </>

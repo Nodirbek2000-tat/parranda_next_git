@@ -2,12 +2,14 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Trash2 } from "lucide-react";
+import { useCurrentUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { formatDate, formatDateTime, todayIso } from "@/lib/format";
 import { ORDER_KIND_LABELS, ORDER_STATUS } from "@/lib/status";
 import { useApi, useDebounced, usePagedApi } from "@/lib/use-api";
 import type { Order, OrderKind, Paginated } from "@/lib/types";
+import { IconButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -20,6 +22,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs } from "@/components/ui/tabs";
 import { itemsSummary } from "./order-parts";
+import { canDeleteOrder, useDeleteOrder } from "./use-delete-order";
 
 const PAGE_SIZE = 30;
 
@@ -46,6 +49,8 @@ function useTabCount(status: string, filters: Record<string, string>): number | 
 /** /orders — orders and supply requests of all households for ADMIN / WAREHOUSE (V3 §6, §15.3). */
 export function OrderList() {
   const router = useRouter();
+  const user = useCurrentUser();
+  const deleteOrder = useDeleteOrder();
   const pathname = usePathname();
   const params = useSearchParams();
 
@@ -229,6 +234,16 @@ export function OrderList() {
               rowKey={(row) => row.id}
               rowHref={(row) => `/orders/${row.id}`}
               stale={list.loading}
+              actions={
+                user.role === "ADMIN"
+                  ? (row) =>
+                      canDeleteOrder(row, user.role) ? (
+                        <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteOrder(row)}>
+                          <Trash2 className="size-4" aria-hidden />
+                        </IconButton>
+                      ) : null
+                  : undefined
+              }
             />
             <Pagination
               page={list.page}

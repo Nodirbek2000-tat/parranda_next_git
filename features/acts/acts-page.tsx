@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useId, useState } from "react";
-import { ChevronDown, Eye, FileDown, FileSignature } from "lucide-react";
+import { ChevronDown, Eye, FileDown, FileSignature, Trash2 } from "lucide-react";
 import { api, apiDownload, toApiError, type FieldErrors } from "@/lib/api";
 import { useCurrentUser } from "@/lib/auth";
 import type { Act, ActKind, ActSnapshot, HouseholdRef } from "@/lib/builder-types";
@@ -11,7 +11,7 @@ import { diffDays, formatDate, formatDateTime, formatRange, ROLE_LABELS, todayIs
 import { useApi, usePagedApi } from "@/lib/use-api";
 import type { Household, Role } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -24,6 +24,7 @@ import { useToast } from "@/components/ui/toast";
 import { HouseholdPicker, UserPicker, type UserOption } from "../work/pickers";
 import { ACT_KIND_LABELS } from "../work/status";
 import { ActSnapshotView } from "./act-snapshot";
+import { useActDelete } from "./use-act-delete";
 
 const PAGE_SIZE = 20;
 const MAX_PERIOD_DAYS = 366;
@@ -375,6 +376,7 @@ function ActList() {
   const user = useCurrentUser();
   const isAdmin = user.role === "ADMIN";
   const pdf = useActPdf();
+  const { canDelete, deleteAct } = useActDelete();
   const [kind, setKind] = useState("");
   const [role, setRole] = useState("");
   const list = usePagedApi<Act>("/acts", { kind, role: isAdmin ? role : undefined }, PAGE_SIZE);
@@ -486,15 +488,22 @@ function ActList() {
             rowKey={(row) => row.id}
             stale={list.loading}
             actions={(row) => (
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={pdf.busy === row.id}
-                icon={<FileDown className="size-4" aria-hidden />}
-                onClick={() => void pdf.download(row)}
-              >
-                PDF
-              </Button>
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={pdf.busy === row.id}
+                  icon={<FileDown className="size-4" aria-hidden />}
+                  onClick={() => void pdf.download(row)}
+                >
+                  PDF
+                </Button>
+                {canDelete && (
+                  <IconButton label={`${row.code}: o‘chirish`} tone="quiet-danger" onClick={() => deleteAct(row)}>
+                    <Trash2 className="size-4" aria-hidden />
+                  </IconButton>
+                )}
+              </>
             )}
           />
           <Pagination page={list.page} count={data.count} pageSize={PAGE_SIZE} onPageChange={list.setPage} disabled={list.loading} />

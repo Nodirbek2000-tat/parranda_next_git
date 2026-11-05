@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, ExternalLink, MapPinned, Navigation, Route, Truck, UserRound } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CalendarDays, ExternalLink, MapPinned, Navigation, Route, Trash2, Truck, UserRound } from "lucide-react";
 import { useCurrentUser } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { formatDate, formatDateTime, formatQuantity } from "@/lib/format";
@@ -12,7 +13,7 @@ import { AttachmentList } from "@/components/files/attachment-list";
 import { MapView } from "@/components/map/map-view";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { buttonClasses } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { ErrorState, StaleDataError } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -21,12 +22,16 @@ import { PageSkeleton } from "@/components/ui/skeleton";
 import { Summary } from "@/components/ui/summary";
 import { directionsHref, plannedText, SOURCE_LABELS, TaskStatusBadge, totalKgText } from "./shared";
 import { TaskActions } from "./task-actions";
+import { canDeleteTask, useDeleteTask } from "./use-delete-task";
 
 const STEPS = ["NEW", "ASSIGNED", "ACCEPTED", "IN_TRANSIT", "DELIVERED", "CONFIRMED"] as const;
 
 /** /logistics/[id] — delivery card with map, items and stock operations, staff, proof, history, actions. */
 export function TaskDetail({ id }: { id: string }) {
   const user = useCurrentUser();
+  const router = useRouter();
+  // silent delete: this page must not refetch (404) before we leave it; the board loads fresh.
+  const deleteTask = useDeleteTask(() => router.replace("/logistics"));
   const resource = useApi<LogisticsTask>(`/logistics/tasks/${id}`);
   const task = resource.data;
 
@@ -70,7 +75,18 @@ export function TaskDetail({ id }: { id: string }) {
             )}
           </span>
         }
-        actions={<TaskActions task={task} />}
+        actions={
+          canDeleteTask(task, user.role) ? (
+            <>
+              <TaskActions task={task} />
+              <Button variant="danger" icon={<Trash2 className="size-4" aria-hidden />} onClick={() => deleteTask(task)}>
+                O‘chirish
+              </Button>
+            </>
+          ) : (
+            <TaskActions task={task} />
+          )
+        }
       />
       <StaleDataError error={resource.error} onRetry={resource.reload} />
 

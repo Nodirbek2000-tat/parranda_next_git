@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
-import { Ban, Check, CircleCheck, FileSignature, ListTodo, Send, Undo2 } from "lucide-react";
+import { Ban, Check, CircleCheck, FileSignature, ListTodo, Send, Trash2, Undo2 } from "lucide-react";
 import { api, apiDownload, toApiError } from "@/lib/api";
 import { useCurrentUser } from "@/lib/auth";
 import type { Act, Task } from "@/lib/builder-types";
@@ -28,6 +29,7 @@ import { FormRenderer, useFormFill } from "../forms/form-renderer";
 import { serverFieldErrors, type RoleSubject } from "../forms/form-utils";
 import { SubmissionView } from "../forms/submission-view";
 import { WORK_TASK_STATUS } from "../work/status";
+import { useTaskDelete } from "./use-task-delete";
 
 /** Downloads the PDF of a new task act (`POST /api/acts {kind: "task"}`, then `/api/acts/{id}/pdf`). */
 export function useTaskActDownload() {
@@ -55,6 +57,8 @@ export function TaskDetail({ id }: { id: string }) {
   const toast = useToast();
   const task = useApi<Task>(`/tasks/${id}`);
   const actDownload = useTaskActDownload();
+  const router = useRouter();
+  const taskDelete = useTaskDelete(() => router.replace("/tasks"));
   const [decision, setDecision] = useState<"approve" | "return" | null>(null);
 
   const data = task.data;
@@ -190,6 +194,11 @@ export function TaskDetail({ id }: { id: string }) {
             {data.can_cancel && (
               <Button variant="secondary" icon={<Ban className="size-4" aria-hidden />} onClick={cancel}>
                 Bekor qilish
+              </Button>
+            )}
+            {taskDelete.canDelete && (
+              <Button variant="danger" icon={<Trash2 className="size-4" aria-hidden />} onClick={() => taskDelete.deleteTask(data)}>
+                O‘chirish
               </Button>
             )}
           </>
