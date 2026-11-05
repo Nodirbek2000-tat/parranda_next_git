@@ -1,0 +1,25 @@
+# NNP FRONTEND — Next.js Web App
+#
+# parranda_backend dan KEYIN ishga tushiriladi (u `nnp_net` tarmog'ini yaratadi).
+#
+#   docker compose build
+#   docker compose up -d
+
+name: nnp-frontend
+
+services:
+  frontend:
+    build:
+      context: .
+      args:
+        # Django ichki tarmoq orqali (brauzer bu manzilni ko'rmaydi)
+        BACKEND_URL: http://backend:8000
+    image: nnp-frontend:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    networks: [nnp_net]
+
+networks:
+  nnp_net:
+    external: true
