@@ -70,6 +70,12 @@ export interface NotificationSettingRow {
   contextual_enabled: boolean;
   updated_by: UserRef | null;
   updated_at: string | null;
+  /** API_CONTRACT_V4 §4: replaces the default body when set ({title} {code} {household} {due} {role} {text}). */
+  custom_text?: string;
+  /** 0 = immediately, max 10080. */
+  delay_minutes?: number;
+  /** Specific users added to the recipients. */
+  extra_user_ids?: number[];
 }
 
 export interface NotificationSettingPatch {
@@ -78,4 +84,8 @@ export interface NotificationSettingPatch {
   /** `null` resets to the registry default roles. */
   roles?: StaffRole[] | null;
   contextual_enabled?: boolean;
+  /** API_CONTRACT_V4 §4. */
+  custom_text?: string;
+  delay_minutes?: number;
+  extra_user_ids?: number[];
 }

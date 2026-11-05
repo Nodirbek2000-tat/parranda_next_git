@@ -82,7 +82,7 @@ function ProductDetailInner({ id }: { id: string }) {
             "Mahsulot"
           )
         }
-        description={product ? `${product.category_display} · o‘lchov birligi: ${product.unit}` : undefined}
+        description={product ? productDescription(product) : undefined}
         actions={
           product && (
             <>
@@ -271,4 +271,16 @@ function ProductBody({ data }: { data: ProductStats }) {
       </ChartCard>
     </>
   );
+}
+
+/** Header line: category, unit and the optional V4 §5 catalogue fields (price, norm, dosage, description). */
+function productDescription(product: ProductStats["product"]): string {
+  const parts = [product.category_display, `o‘lchov birligi: ${product.unit}`];
+  if (product.price !== null && product.price !== undefined) parts.push(`narx: ${formatNumber(Number(product.price))} so‘m`);
+  if (product.consumption_norm !== null && product.consumption_norm !== undefined) {
+    parts.push(`sarf me’yori: ${formatNumber(Number(product.consumption_norm), 3)} ${product.unit} / parranda`);
+  }
+  if (product.dosage) parts.push(`doza: ${product.dosage}`);
+  if (product.description) parts.push(product.description);
+  return parts.join(" · ");
 }

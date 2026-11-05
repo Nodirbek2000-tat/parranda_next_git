@@ -41,6 +41,8 @@ export interface User {
   /** Linked logistics `Driver` (LOGISTICS only). */
   driver_id: number | null;
   date_joined: string;
+  /** API_CONTRACT_V4 §2: role profile and scope (`/api/me` only). `permissions: null` = system defaults. */
+  access?: import("./builder-types").MeAccess | null;
 }
 
 export interface UserRef {
@@ -166,6 +168,13 @@ export interface Product {
   is_low: boolean;
   is_active: boolean;
   created_at: string;
+  /** API_CONTRACT_V4 §5 (all optional). "Narx (so‘m)". */
+  price?: number | null;
+  /** "Sarf me’yori (1 parrandaga)". */
+  consumption_norm?: number | null;
+  /** "Doza / qo‘llash". */
+  dosage?: string;
+  description?: string;
 }
 
 /** Every stock operation type; ADJUST_* come only from an approved inventory count (V3 §5.3). */
@@ -374,6 +383,11 @@ export interface ProductCreatePayload {
   category: ProductCategory;
   unit: ProductUnit;
   min_stock: number;
+  /** API_CONTRACT_V4 §5. */
+  price?: number | null;
+  consumption_norm?: number | null;
+  dosage?: string;
+  description?: string;
 }
 
 export type ProductUpdatePayload = Partial<ProductCreatePayload & { is_active: boolean }>;

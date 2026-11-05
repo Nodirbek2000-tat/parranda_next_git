@@ -59,6 +59,18 @@ function productColumns(
     },
     ...BASE_COLUMNS,
     {
+      key: "price",
+      header: "Narx",
+      align: "right",
+      hideOnMobile: true,
+      cell: (row) =>
+        row.price === null || row.price === undefined ? (
+          <span className="text-muted">—</span>
+        ) : (
+          <span className="text-muted">{formatNumber(Number(row.price))} so‘m</span>
+        ),
+    },
+    {
       key: "reserved",
       header: "Zaxirada",
       align: "right",

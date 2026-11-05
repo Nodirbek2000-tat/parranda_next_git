@@ -7,7 +7,9 @@ export type AttachmentPurpose =
   | "DISEASE"
   | "TREATMENT"
   | "VET_REQUEST"
-  | "STOCK_DOCUMENT";
+  | "STOCK_DOCUMENT"
+  /** API_CONTRACT_V4 §1.2: file / photo fields of builder forms. */
+  | "FORM_FILE";
 
 export type AttachmentContentType = "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { api, toApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { formatDateTime, ROLE_LABELS } from "@/lib/format";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
+import { NotificationRuleEditor, ruleSummary } from "./notification-rule-editor";
 
 const ROLE_ORDER: readonly StaffRole[] = ["ADMIN", "WAREHOUSE", "LOGISTICS", "VET"];
 
@@ -28,13 +29,15 @@ function sameRoles(a: readonly StaffRole[], b: readonly StaffRole[]): boolean {
 }
 
 /**
- * Bildirishnomalar tab of /settings (V3 §9.3): per-event switches and recipient roles.
+ * Bildirishnomalar tab of /settings and /builder (V3 §9.3, V4 §4): per-event switches, recipient roles and the
+ * notification constructor (custom text, delay, extra recipients, versions).
  * Every change is saved immediately (`PATCH /api/notification-settings/{event}`, Super Admin).
  */
 export function NotificationSettingsTable({ rows: initialRows }: { rows: NotificationSettingRow[] }) {
   const toast = useToast();
   const [rows, setRows] = useState(initialRows);
   const [saving, setSaving] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
 
   const save = async (row: NotificationSettingRow, patch: NotificationSettingPatch) => {
     setSaving(row.event);
@@ -93,6 +96,7 @@ export function NotificationSettingsTable({ rows: initialRows }: { rows: Notific
                       {formatDateTime(row.updated_at)} · {row.updated_by.full_name}
                     </p>
                   )}
+                  {ruleSummary(row) && <p className="mt-1 text-xs text-accent">{ruleSummary(row)}</p>}
                 </div>
                 <div className="flex flex-col gap-3 lg:items-end">
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -149,8 +153,25 @@ export function NotificationSettingsTable({ rows: initialRows }: { rows: Notific
                       <Badge className="ml-1">Standart</Badge>
                     )}
                   </div>
+                  <Button
+                    variant={open === row.event ? "secondary" : "ghost"}
+                    size="sm"
+                    aria-expanded={open === row.event}
+                    icon={<SlidersHorizontal className="size-3.5" aria-hidden />}
+                    onClick={() => setOpen(open === row.event ? null : row.event)}
+                  >
+                    Matn, vaqt va qabul qiluvchilar
+                  </Button>
                 </div>
               </div>
+              {open === row.event && (
+                <NotificationRuleEditor
+                  row={row}
+                  onSaved={(updated) => setRows((list) => list.map((item) => (item.event === updated.event ? updated : item)))}
+                  onReverted={(list) => setRows(list)}
+                  onClose={() => setOpen(null)}
+                />
+              )}
             </li>
           );
         })}

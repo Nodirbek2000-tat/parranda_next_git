@@ -2,13 +2,16 @@ import type { LucideIcon } from "lucide-react";
 import {
   BellRing,
   Bird,
+  Blocks,
   Car,
   ChartLine,
   ClipboardCheck,
+  FileSignature,
   FileSpreadsheet,
   House,
   IdCard,
   LayoutDashboard,
+  ListTodo,
   Map,
   MessageSquareHeart,
   ScrollText,
@@ -18,6 +21,7 @@ import {
   Truck,
   Users,
   Warehouse,
+  Workflow,
 } from "lucide-react";
 import type { Role } from "./types";
 
@@ -38,6 +42,8 @@ export interface NavItem {
 export interface NavUser {
   role: Role;
   is_super_admin?: boolean;
+  /** API_CONTRACT_V4 §2: role profile permissions; `null` = system defaults. */
+  access?: { permissions: Record<string, readonly string[]> | null } | null;
 }
 
 const A: Role = "ADMIN";
@@ -62,10 +68,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/vet", label: "Veterinariya", shortLabel: "Vet", icon: Stethoscope, roles: [A, V], primaryFor: [V] },
   { href: "/vet/requests", label: "Murojaatlar", shortLabel: "Murojaatlar", icon: MessageSquareHeart, roles: [A, V], primaryFor: [V] },
   { href: "/reports", label: "Hisobotlar", shortLabel: "Hisobotlar", icon: FileSpreadsheet, roles: ALL },
+  { href: "/tasks", label: "Vazifalar", shortLabel: "Vazifalar", icon: ListTodo, roles: ALL },
+  { href: "/processes", label: "Jarayonlar", shortLabel: "Jarayonlar", icon: Workflow, roles: [A] },
+  { href: "/acts", label: "Dalolatnomalar", shortLabel: "Dalolatnoma", icon: FileSignature, roles: ALL },
   { href: "/map", label: "Xarita", shortLabel: "Xarita", icon: Map, roles: [A, W, V], primaryFor: [V] },
   { href: "/users", label: "Xodimlar", shortLabel: "Xodimlar", icon: Users, roles: [A] },
   { href: "/notifications", label: "Bildirishnomalar", shortLabel: "Xabarlar", icon: BellRing, roles: [A] },
   { href: "/audit", label: "Audit jurnali", shortLabel: "Audit", icon: ScrollText, roles: [A] },
+  { href: "/builder", label: "Konstruktor", shortLabel: "Konstruktor", icon: Blocks, roles: [A], superOnly: true },
   { href: "/settings", label: "Sozlamalar", shortLabel: "Sozlamalar", icon: Settings, roles: [A], superOnly: true },
   { href: "/my", label: "Mening xonadonim", shortLabel: "Xonadonim", icon: House, roles: [O], primaryFor: [O] },
   { href: "/my/orders", label: "Buyurtmalarim", shortLabel: "Buyurtma", icon: ShoppingCart, roles: [O], primaryFor: [O] },
@@ -96,8 +106,49 @@ function hasRole(user: NavUser, item: { roles: readonly Role[]; superOnly?: bool
   return !item.superOnly || Boolean(user.is_super_admin);
 }
 
+/**
+ * API_CONTRACT_V4 §2: the access-profile module of a menu item (first path segment, the same mapping
+ * the backend middleware uses for API paths). null = not restricted by profiles.
+ */
+const SEGMENT_MODULES: Readonly<Record<string, string>> = {
+  dashboard: "stats",
+  stats: "stats",
+  households: "households",
+  my: "households",
+  batches: "batches",
+  movements: "batches",
+  warehouse: "warehouse",
+  products: "warehouse",
+  orders: "orders",
+  logistics: "logistics",
+  vet: "vet",
+  reports: "reports",
+  map: "map",
+  users: "users",
+  notifications: "notifications",
+  audit: "audit",
+  tasks: "tasks",
+  processes: "processes",
+  "process-runs": "processes",
+  forms: "forms",
+  acts: "acts",
+};
+
+export function navModule(href: string): string | null {
+  const segment = href.split("/").filter(Boolean)[0] ?? "";
+  return SEGMENT_MODULES[segment] ?? null;
+}
+
+/** A role profile hides menu items whose module lacks "view" (the API answers 403 there anyway). */
+function profileAllows(user: NavUser, href: string): boolean {
+  const permissions = user.access?.permissions;
+  if (!permissions || user.is_super_admin) return true;
+  const key = navModule(href);
+  return key === null || Boolean(permissions[key]?.includes("view"));
+}
+
 export function navItemsFor(user: NavUser): NavItem[] {
-  return NAV_ITEMS.filter((item) => hasRole(user, item));
+  return NAV_ITEMS.filter((item) => hasRole(user, item) && profileAllows(user, item.href));
 }
 
 /** Items shown directly in the phone bottom bar (max 4; the rest go under "Yana"). */
@@ -126,6 +177,8 @@ function matches(pathname: string, prefix: string): boolean {
 const DETAIL_EXTRA: readonly { pattern: RegExp; roles: readonly Role[] }[] = [
   // An owner follows a link to his own delivery task; the API answers 404 for other households.
   { pattern: /^\/logistics\/\d+$/, roles: [O] },
+  // API_CONTRACT_V4 §3.3: a run that has a task of theirs (the API answers 404 otherwise).
+  { pattern: /^\/processes\/\d+$/, roles: [W, L, V, O] },
 ];
 
 export function canAccess(user: NavUser, pathname: string): boolean {

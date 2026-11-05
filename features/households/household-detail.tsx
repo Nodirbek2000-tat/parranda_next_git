@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   Bird,
   ClipboardList,
+  FileSignature,
   KeyRound,
   Lock,
   LockOpen,
@@ -220,6 +221,12 @@ export function HouseholdDetail({ id }: { id: string }) {
                 <Button variant="secondary" icon={<Power className="size-4" aria-hidden />} onClick={toggleActive}>
                   {data.is_active ? "Nofaol qilish" : "Faollashtirish"}
                 </Button>
+                <LinkButton
+                  href={`/acts?household=${data.id}&kind=general`}
+                  icon={<FileSignature className="size-4" aria-hidden />}
+                >
+                  Umumiy dalolatnoma
+                </LinkButton>
               </>
             )}
           </>

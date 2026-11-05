@@ -37,13 +37,16 @@ export class ApiError extends Error {
   readonly detail: string | null;
   /** Field name -> human message (multiple DRF messages joined). */
   readonly fields: FieldErrors;
+  /** Parsed JSON error body (nested field errors, e.g. `{"data": {"<key>": ["…"]}}` of form submissions). */
+  readonly body: unknown;
 
-  constructor(status: number, message: string, detail: string | null = null, fields: FieldErrors = {}) {
+  constructor(status: number, message: string, detail: string | null = null, fields: FieldErrors = {}, body: unknown = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.detail = detail;
     this.fields = fields;
+    this.body = body;
   }
 
   get isNetworkError(): boolean {
@@ -75,7 +78,7 @@ function parseError(status: number, body: unknown): ApiError {
   }
   if (Array.isArray(body)) {
     const messages = flattenMessages(body);
-    return new ApiError(status, messages[0] ?? fallback);
+    return new ApiError(status, messages[0] ?? fallback, null, {}, body);
   }
 
   const record = body as Record<string, unknown>;
@@ -94,7 +97,7 @@ function parseError(status: number, body: unknown): ApiError {
   }
 
   const message = detail ?? general[0] ?? Object.values(fields)[0] ?? fallback;
-  return new ApiError(status, message, detail ?? (general.length ? general.join(" ") : null), fields);
+  return new ApiError(status, message, detail ?? (general.length ? general.join(" ") : null), fields, body);
 }
 
 export function buildPath(path: string, query?: Query): string {
@@ -176,7 +179,7 @@ function refreshOnce(): Promise<RefreshOutcome> {
 }
 
 export interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   query?: Query;
   /** Send the bearer token and handle 401 with refresh (default true). */
@@ -398,6 +401,9 @@ export const api = {
   },
   patch<T>(path: string, body: unknown, options: Omit<RequestOptions, "method" | "body"> = {}): Promise<T> {
     return request<T>(path, { ...options, method: "PATCH", body });
+  },
+  put<T>(path: string, body: unknown, options: Omit<RequestOptions, "method" | "body"> = {}): Promise<T> {
+    return request<T>(path, { ...options, method: "PUT", body });
   },
   delete<T = null>(path: string, options: Omit<RequestOptions, "method" | "body"> = {}): Promise<T> {
     return request<T>(path, { ...options, method: "DELETE" });
