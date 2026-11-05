@@ -136,7 +136,6 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   note: "Izoh",
   bird_count: "Parranda soni",
   feed_kg: "Yem (kg)",
-  eggs: "Tuxum",
   meat_kg: "Go‘sht (kg)",
   deaths: "Nobud",
   avg_weight_g: "O‘rtacha vazn (g)",

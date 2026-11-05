@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/toast";
 export function BatchModal({ onClose, onDone }: { onClose: () => void; onDone: (batch: Batch) => void }) {
   const toast = useToast();
   const form = useForm({
-    poultry_type: "LAYER",
+    poultry_type: "BROILER",
     breed: "",
     initial_quantity: "",
     age_days: "1",

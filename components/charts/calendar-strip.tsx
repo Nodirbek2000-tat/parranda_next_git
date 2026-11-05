@@ -9,7 +9,7 @@ export type CalendarDayState = "reported" | "missing" | "pending" | "none";
 export interface CalendarDay {
   date: string;
   state: CalendarDayState;
-  /** Shown when the day is selected, e.g. "Tuxum: 410 dona · Yem: 55 kg". */
+  /** Shown when the day is selected, e.g. "Go‘sht: 62 kg · Yem: 55 kg". */
   detail?: string;
 }
 

@@ -25,7 +25,7 @@ export function reportColumns({ household = false }: { household?: boolean } = {
   }
   columns.push(
     { key: "birds", header: "Parranda", align: "right", cell: (row) => formatNumber(row.bird_count) },
-    { key: "eggs", header: "Tuxum", align: "right", cell: (row) => formatNumber(row.eggs) },
+    { key: "meat", header: "Go‘sht, kg", align: "right", cell: (row) => formatNumber(row.meat_kg) },
     { key: "feed", header: "Yem, kg", align: "right", cell: (row) => formatNumber(row.feed_kg) },
     {
       key: "deaths",
@@ -33,7 +33,6 @@ export function reportColumns({ household = false }: { household?: boolean } = {
       align: "right",
       cell: (row) => <span className={row.deaths > 0 ? "font-medium text-danger" : undefined}>{formatNumber(row.deaths)}</span>,
     },
-    { key: "meat", header: "Go‘sht, kg", align: "right", hideOnMobile: true, cell: (row) => formatNumber(row.meat_kg) },
     {
       key: "weight",
       header: "O‘rt. vazn, g",

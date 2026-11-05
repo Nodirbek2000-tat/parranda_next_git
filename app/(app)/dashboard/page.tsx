@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Suspense } from "react";
-import { Activity, Beef, Bird, ClipboardList, Egg, House, Package, Truck, Warehouse } from "lucide-react";
+import { Activity, Beef, Bird, ClipboardList, House, Package, Truck, Warehouse, Wheat } from "lucide-react";
 import { mortalityTone } from "@/lib/stats";
 import { useApi } from "@/lib/use-api";
 import { formatDate, formatNumber, todayIso } from "@/lib/format";
@@ -108,22 +108,22 @@ export default function DashboardPage() {
               />
             </Link>
             <StatCard
-              label="Bugungi tuxum"
-              icon={Egg}
-              value={`${formatNumber(data.eggs_today)} dona`}
-              hint="bugun kiritilgan hisobotlar bo‘yicha"
-            />
-            <StatCard
               label="Bugungi go‘sht"
               icon={Beef}
               value={`${formatNumber(data.meat_today ?? 0, 1)} kg`}
-              hint="broyler hisobotlari bo‘yicha"
+              hint="bugun kiritilgan hisobotlar bo‘yicha"
+            />
+            <StatCard
+              label="Bugungi yem sarfi"
+              icon={Wheat}
+              value={`${formatNumber(data.feed_used_today, 1)} kg`}
+              hint="bugun kiritilgan hisobotlar bo‘yicha"
             />
             <StatCard
               label="Bugungi hisobotlar"
               icon={ClipboardList}
               value={`${formatNumber(data.reports_today)} / ${formatNumber(data.households_active)}`}
-              hint={`faol xonadonlardan · yem sarfi ${formatNumber(data.feed_used_today, 1)} kg`}
+              hint="faol xonadonlardan"
             />
           </div>
 
@@ -145,9 +145,10 @@ export default function DashboardPage() {
               <CardHeader title="Kunlik ishlab chiqarish" description="So‘nggi 14 kun" />
               <CardBody className="grid gap-8 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 <MiniBarChart
-                  title="Tuxum"
-                  unit="dona"
-                  data={data.production_14d.map((item) => ({ date: item.date, value: item.eggs }))}
+                  title="Go‘sht"
+                  unit="kg"
+                  data={data.production_14d.map((item) => ({ date: item.date, value: item.meat_kg }))}
+                  digits={1}
                   partialLast={partialToday}
                 />
                 <MiniBarChart
@@ -157,15 +158,6 @@ export default function DashboardPage() {
                   digits={1}
                   partialLast={partialToday}
                 />
-                {data.production_14d.some((item) => (item.meat_kg ?? 0) > 0) && (
-                  <MiniBarChart
-                    title="Go‘sht"
-                    unit="kg"
-                    data={data.production_14d.map((item) => ({ date: item.date, value: item.meat_kg ?? 0 }))}
-                    digits={1}
-                    partialLast={partialToday}
-                  />
-                )}
               </CardBody>
             </Card>
 

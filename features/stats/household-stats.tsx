@@ -18,10 +18,10 @@ import { PeriodPicker, usePeriodQuery } from "@/components/stats/period-picker";
 
 const KPI_ORDER: readonly KpiKey[] = [
   "birds_end",
-  "eggs",
-  "laying_rate_pct",
+  "meat_kg",
+  "fcr",
+  "avg_weight_g",
   "feed_kg",
-  "feed_per_egg_g",
   "deaths",
   "mortality_pct",
   "report_discipline_pct",
@@ -29,13 +29,13 @@ const KPI_ORDER: readonly KpiKey[] = [
 
 const OWNER_PRESETS: readonly PeriodPreset[] = DEFAULT_PRESETS.filter((preset) => preset.days <= 90);
 
-const eggsFormat = (value: number) => `${formatNumber(value)} dona`;
+const gramsFormat = (value: number) => `${formatNumber(value, 0)} g`;
 const kgFormat = (value: number) => `${formatNumber(value, 1)} kg`;
 const birdsFormat = (value: number) => `${formatNumber(value)} dona`;
 
 /**
  * "Statistika" section of /households/[id] and /my (contract 6.7): period
- * picker, KPI cards with deltas, bird count step line, eggs + laying rate,
+ * picker, KPI cards with deltas, bird count step line, meat + average weight,
  * feed bars and the reported / missing days calendar.
  */
 export function HouseholdStatsSection(props: { path: string; owner?: boolean }) {
@@ -74,15 +74,15 @@ function HouseholdStatsInner({ path, owner = false }: { path: string; owner?: bo
 function HouseholdStatsBody({ data, owner }: { data: HouseholdStats; owner: boolean }) {
   const dates = data.series.map((point) => point.date);
   const birds = data.series.map((point) => point.birds);
-  const eggs = data.series.map((point) => point.eggs);
-  const laying = data.series.map((point) => point.laying_rate_pct);
+  const meat = data.series.map((point) => point.meat_kg);
+  const weight = data.series.map((point) => point.avg_weight_g);
   const feed = data.series.map((point) => point.feed_kg);
-  // No report that day: eggs / feed are unknown (hatched gap in the charts), not 0.
+  // No report that day: meat / feed are unknown (hatched gap in the charts), not 0.
   const missing = data.series.map((point) => !point.reported);
   const span = `${data.period.days} kun`;
   const pendingToday = data.series.some((point) => point.pending);
   const totals = {
-    eggs: data.kpis.eggs.value ?? 0,
+    meat: data.kpis.meat_kg.value ?? 0,
     feed: data.kpis.feed_kg.value ?? 0,
   };
   const noReports = (data.kpis.reports.value ?? 0) === 0;
@@ -91,7 +91,7 @@ function HouseholdStatsBody({ data, owner }: { data: HouseholdStats; owner: bool
     date: point.date,
     state: point.reported ? "reported" : point.pending ? "pending" : point.expected ? "missing" : "none",
     detail: point.reported
-      ? `Tuxum: ${formatNumber(point.eggs)} dona · Yem: ${formatNumber(point.feed_kg, 1)} kg`
+      ? `Go‘sht: ${formatNumber(point.meat_kg, 1)} kg · Yem: ${formatNumber(point.feed_kg, 1)} kg`
       : `Parranda: ${formatNumber(point.birds)} dona`,
   }));
   const discipline = data.kpis.report_discipline_pct.value;
@@ -99,8 +99,9 @@ function HouseholdStatsBody({ data, owner }: { data: HouseholdStats; owner: bool
   const gapped = (values: readonly number[]) => values.map((value, index) => (missing[index] ? null : value));
   const trends: Partial<Record<KpiKey, readonly (number | null)[]>> = {
     birds_end: birds,
-    eggs: gapped(eggs),
-    laying_rate_pct: laying,
+    meat_kg: gapped(meat),
+    avg_weight_g: weight,
+    fcr: data.series.map((point) => point.fcr),
     feed_kg: gapped(feed),
     deaths: data.series.map((point) => point.deaths),
   };
@@ -157,40 +158,39 @@ function HouseholdStatsBody({ data, owner }: { data: HouseholdStats; owner: bool
         </ChartCard>
 
         <ChartCard
-          title="Tuxum"
-          description="dona / kun, hisobot kiritilgan kunlar"
-          summary={`Jami: ${formatNumber(totals.eggs)}`}
+          title="Go‘sht"
+          description="kg / kun, hisobot kiritilgan kunlar"
+          summary={`Jami: ${formatNumber(totals.meat, 1)} kg · FCR ${formatKpiValue("fcr", data.kpis.fcr.value)}`}
         >
-          {noReports ? (
-            <NoData />
+          {noReports || isEmptySeries([{ values: meat }]) ? (
+            <NoData title={noReports ? undefined : "Bu davrda go‘sht kiritilmagan"} />
           ) : (
             <TimeChart
               dates={dates}
-              series={[{ key: "eggs", label: "Tuxum", color: CHART_COLORS.primary, values: eggs, kind: "area" }]}
+              series={[{ key: "meat", label: "Go‘sht", color: CHART_COLORS.primary, values: meat, kind: "area" }]}
               missing={missing}
-              format={eggsFormat}
-              ariaLabel={`Kunlik tuxum, jami ${formatNumber(totals.eggs)} dona`}
+              format={kgFormat}
+              ariaLabel={`Kunlik go‘sht, jami ${formatNumber(totals.meat, 1)} kg`}
             />
           )}
         </ChartCard>
 
         <ChartCard
-          title="Tuxumdorlik"
-          description="kunlik, tuxum yo‘nalishidagi parrandaga nisbatan, %"
-          summary={formatPercent(data.kpis.laying_rate_pct.value)}
+          title="O‘rtacha vazn"
+          description="g, hisobotlarda kiritilgan kunlar"
+          summary={formatKpiValue("avg_weight_g", data.kpis.avg_weight_g.value)}
         >
-          {laying.every((value) => value === null) ? (
-            <NoData />
+          {weight.every((value) => value === null) ? (
+            <NoData title="Bu davrda vazn kiritilmagan" />
           ) : (
             <TimeChart
               dates={dates}
               series={[
-                { key: "laying", label: "Tuxumdorlik", color: CHART_COLORS.accent, values: laying, kind: "line" },
+                { key: "weight", label: "O‘rtacha vazn", color: CHART_COLORS.accent, values: weight, kind: "line" },
               ]}
               missing={missing}
-              format={(value) => formatPercent(value)}
-              axisFormat={(value) => `${formatNumber(value, 1)}%`}
-              ariaLabel={`Kunlik tuxumdorlik, davr bo‘yicha ${formatPercent(data.kpis.laying_rate_pct.value)}`}
+              format={gramsFormat}
+              ariaLabel={`Kunlik o‘rtacha vazn, davr bo‘yicha ${formatKpiValue("avg_weight_g", data.kpis.avg_weight_g.value)}`}
             />
           )}
         </ChartCard>

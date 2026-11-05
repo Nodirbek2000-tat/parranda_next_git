@@ -19,6 +19,8 @@ interface AccountActions {
   setActive: (account: AccountRef, active: boolean) => void;
   /** `POST /api/users/{id}/end-sessions` (V3 §2.4), optionally unlinking Telegram too. */
   endSessions: (account: AccountRef & { telegram_linked?: boolean }) => void;
+  /** `DELETE /api/users/{id}` after TWO confirmations (the account disappears, its history stays). */
+  deleteAccount: (account: AccountRef) => void;
   /** Render this once: the one-time temporary password dialog. */
   dialogs: ReactNode;
 }
@@ -118,11 +120,51 @@ export function useAccountActions(): AccountActions {
     });
   };
 
+  const deleteAccount = (account: AccountRef) => {
+    void (async () => {
+      // 1-so‘rov: faqat tasdiq (hech narsa o‘chmaydi).
+      const first = await confirm({
+        title: "Xodimni o‘chirish",
+        confirmLabel: "Ha, o‘chirish",
+        tone: "danger",
+        message: (
+          <p>
+            <strong>{account.full_name}</strong> ({account.username}) hisobini o‘chirmoqchimisiz?
+          </p>
+        ),
+        onConfirm: async () => {},
+      });
+      if (!first) return;
+      // 2-so‘rov: haqiqiy o‘chirish.
+      await confirm({
+        title: "Rostdan ham o‘chirasizmi?",
+        confirmLabel: "Ha, butunlay o‘chirish",
+        tone: "danger",
+        message: (
+          <div className="flex flex-col gap-2">
+            <p>
+              <strong>{account.full_name}</strong> tizimga ham, botga ham boshqa kira olmaydi va xodimlar ro‘yxatidan
+              yo‘qoladi. Bu amalni qaytarib bo‘lmaydi.
+            </p>
+            <p className="text-[13px] text-muted">
+              U qilgan ishlar tarixi (ombor operatsiyalari, buyurtmalar, audit) saqlanib qoladi. Login nomi bo‘shaydi —
+              uni boshqa xodimga berish mumkin.
+            </p>
+          </div>
+        ),
+        onConfirm: async () => {
+          await api.delete(`/users/${account.id}`);
+          toast.success("Xodim o‘chirildi");
+        },
+      });
+    })();
+  };
+
   const dialogs = temp ? (
     <TempPasswordModal username={temp.username} password={temp.password} onClose={() => setTemp(null)} />
   ) : null;
 
-  return { resetPassword, unlinkTelegram, setActive, endSessions, dialogs };
+  return { resetPassword, unlinkTelegram, setActive, endSessions, deleteAccount, dialogs };
 }
 
 function UnlinkChoice({ onChange }: { onChange: (value: boolean) => void }) {

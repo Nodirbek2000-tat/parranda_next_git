@@ -76,10 +76,10 @@ Telegram orqali kirish `401` qaytaradi.
 | `/login` | hamma | login/parol, Telegram orqali avtomatik kirish |
 | `/change-password` | hamma | parolni almashtirish; vaqtinchalik parol bilan kirilganda majburiy |
 | `/` | hamma | A/W → `/dashboard`, O → `/my` |
-| `/dashboard` | A, W | ko‘rsatkichlar, “So‘nggi 30 kun” (tuxumdorlik, yem / tuxum, o‘lim, hisobot intizomi — oldingi davrga nisbatan, “Batafsil →” `/stats`), 14 kunlik tuxum/yem grafigi, xarita, kam qolgan mahsulotlar, hisobot bermaganlar, so‘nggi harakatlar |
-| `/stats` | A, W | tahlil: davr tanlash, 8 ta KPI (delta bilan), tuxum / tuxumdorlik / yem / nobud / hisobotlar / tarqatish grafiklari, parranda turlari (donut + jadval), tumanlar, hisobot intizomi, eng yaxshi va eng past 5 xonadon, yuqori o‘lim (chegara bilan), ombor bo‘limi |
+| `/dashboard` | A, W | ko‘rsatkichlar, “So‘nggi 30 kun” (go‘sht, FCR, o‘rtacha vazn, o‘lim, hisobot intizomi — oldingi davrga nisbatan, “Batafsil →” `/stats`), 14 kunlik go‘sht/yem grafigi, xarita, kam qolgan mahsulotlar, hisobot bermaganlar, so‘nggi harakatlar |
+| `/stats` | A, W | tahlil: davr tanlash, 10 ta KPI (delta bilan: go‘sht, FCR, go‘sht / parranda, o‘rtacha vazn, yem, yem / parranda / kun, nobud, o‘lim, intizom, hisobotlar), go‘sht / FCR / yem / o‘rtacha vazn / nobud / hisobotlar / tarqatish grafiklari, parranda turlari (donut + jadval), tumanlar, hisobot intizomi, eng yaxshi va eng past 5 xonadon (FCR bo‘yicha, past — yaxshi), yuqori o‘lim (chegara bilan), ombor bo‘limi |
 | `/households` | A, W | qidiruv/filtr, jadval; A: “Yangi xonadon” (vaqtinchalik parol bir marta ko‘rsatiladi) |
-| `/households/[id]` | A, W | profil, joylashuv (A xaritani bosib o‘rnatadi), partiyalar, **Statistika** (KPI, parranda soni, tuxum, tuxumdorlik, yem, hisobot kalendari va hisobotsiz kunlar), harakatlar, hisobotlar, berilgan mahsulotlar; parranda harakati; A: tahrirlash, faollik, hisobot kiritish, egasining hisobi |
+| `/households/[id]` | A, W | profil, joylashuv (A xaritani bosib o‘rnatadi), partiyalar, **Statistika** (KPI, parranda soni, go‘sht, o‘rtacha vazn, yem, hisobot kalendari va hisobotsiz kunlar), harakatlar, hisobotlar, berilgan mahsulotlar; parranda harakati; A: tahrirlash, faollik, hisobot kiritish, egasining hisobi |
 | `/batches` | A, W | partiyalar (qator → `/batches/[id]`), yangi partiya, “Amal” (tarqatish / qaytarish / nobud / chiqim), harakatlar tarixi |
 | `/batches/[id]` | A, W | partiya: yosh, KPI, “Tarkib” donut (markaz + xonadonlar + nobud + chiqim = boshlang‘ich), dinamika (standart davr — butun davr), xonadonlar bo‘yicha taqsimot, harakatlar; “Amal”, “Tahrirlash” (faqat sog‘lig‘i holati va yetkazib beruvchi — `PATCH`) |
 | `/warehouse` | A, W | ombor ko‘rsatkichlari (mahsulotlar, kam qolgan, yem qoldig‘i, necha kunga yetadi), mahsulotlar (qoldiq, “Kam”, “Yetadi”; qator → `/warehouse/[id]`), yangi/tahrirlash, kirim/chiqim, operatsiyalar tarixi |
@@ -121,7 +121,7 @@ hisoblamaydi, faqat ko‘rsatadi (`lib/stats.ts`):
 | `KpiCard`, `StatKpiCard`, `PeriodPicker`, `ChartCard`, `Loadable` | `components/stats`: KPI, davr, karta, yuklanish / bo‘sh / xato holatlari |
 
 Ranglar faqat brend palitrasidan: asosiy `#12372A`, aksent `#2F6B3F` (area 12 %), ogohlantirish `#E8B04A`,
-xavf `#B42318`; parranda turlari LAYER `#2F6B3F`, BROILER `#E8B04A`, BREEDER `#12372A`. Ikki va undan ko‘p qator
+xavf `#B42318`; parranda turlari BROILER `#E8B04A`, BREEDER `#9DBFDC`. Ikki va undan ko‘p qator
 bo‘lsa — legenda; ma’lumot har doim jadval ko‘rinishida ham bor.
 
 ## Dizayn tizimi
@@ -200,10 +200,13 @@ chaqiriladi (parallel so‘rovlar bitta refreshni kutadi), muvaffaqiyatsiz bo‘
 
 ## Fix bosqichi (TZ to‘liq qamrovi, `docs/TZ_COVERAGE.md`)
 
+- **Faqat go‘sht yo‘nalishi** (mijoz qarori): parranda turlari BROILER va BREEDER; kunlik hisobotda asosiy natija —
+  go‘sht (kg, ixtiyoriy maydon, formada birinchi), o‘rtacha vazn, yem, nobud. Ko‘rsatkichlar: go‘sht, FCR = yem ÷ go‘sht
+  (past — yaxshi, KPI rangi o‘lim kabi teskari), go‘sht / parranda, o‘rtacha vazn; eng yaxshi / past xonadonlar FCR bo‘yicha.
 - **Dashboard** (`app/(app)/dashboard/page.tsx`, `features/dashboard/period-section.tsx`): “Jami parranda”, “Ombor qoldig‘i”
   (→ `/warehouse`), “Bugungi go‘sht” plitkalari; “Davr ko‘rsatkichlari” — `PeriodPicker` + viloyat, parranda turi,
   “Demo ma’lumotsiz” filtrlari (URL: `date_from/date_to/region/poultry_type/exclude_demo`, `/api/stats/overview`),
-  tuxum va go‘sht grafiklari; “Oylik ishlab chiqarish” (`production_12m`, `MonthlyProductionCard`). `MiniBarChart`
+  go‘sht va o‘rtacha vazn grafiklari; “Oylik ishlab chiqarish” (`production_12m`, `MonthlyProductionCard`). `MiniBarChart`
   endi `windowLabel`/`formatLabel`/`formatTick` qabul qiladi.
 - **Sana maydonlari** DD.MM.YYYY ko‘rinadi: `Input type="date"` → `DateInput` (`components/ui/field.tsx`, fokusda
   native tahrirlash, qiymat ISO bo‘lib qoladi).
@@ -211,12 +214,12 @@ chaqiriladi (parallel so‘rovlar bitta refreshni kutadi), muvaffaqiyatsiz bo‘
   (`features/households/household-activity.tsx`), “Qabul qilingan” ustuni, Telegram ID (`•••4567`), “Demo” belgisi;
   tahrirlashda “Ma’lumot turi” (real / demo). Ro‘yxatda demo filtri.
 - **Egasi**: `/my` dagi partiya kodi → `OwnerBatchModal` (`/api/my/batches/{id}`: yosh, yetkazib beruvchi, sog‘liq,
-  emlash tarixi); 7 kunlik go‘sht.
+  emlash tarixi); 7 kunlik go‘sht va FCR.
 - **Ombor**: “Parranda (markazda)” kartasi (`features/stock/center-birds-card.tsx`); kirim/chiqim formasida hujjat fayli
   (`STOCK_DOCUMENT`), jadvalda 📎 (`features/stock/document-files.tsx`).
 - **Logistika**: yetkazish oynasida ekrandagi imzo (`components/files/signature-pad.tsx` → PNG `DELIVERY_PROOF`).
 - **Bildirishnoma sozlamalari**: qo‘ng‘iroqcha → ⚙️ (`components/layout/notification-preferences.tsx`).
-- **Audit**: holat, xonadon, mahsulot filtrlari; “Rad etildi” belgisi. **Statistika**: go‘sht grafigi (bo‘lsa).
+- **Audit**: holat, xonadon, mahsulot filtrlari; “Rad etildi” belgisi. **Statistika**: go‘sht grafigi.
 - **Fayllar**: `VET_REQUEST` uchun faqat rasm (`acceptAttributeFor`, `validateFile(file, purpose)`).
 - VET uchun partiya kodlari havola emas (`movementColumns({ linkBatches })`). Buyurtmani tasdiqlashda o‘tgan
   `desired_date` reja sanasiga qo‘yilmaydi. Sessiyalarni yakunlash oynasi Telegram Web App haqida ogohlantiradi.

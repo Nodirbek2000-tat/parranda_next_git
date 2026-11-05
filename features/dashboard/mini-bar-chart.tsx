@@ -12,7 +12,7 @@ interface MiniBarChartProps {
   title: string;
   unit: string;
   data: readonly BarDatum[];
-  /** Decimals of the values (feed 1, eggs 0). */
+  /** Decimals of the values (feed / meat 1, counts 0). */
   digits?: number;
   /**
    * The last bar is today, which is not over yet: drawn lighter with a dashed outline and this note

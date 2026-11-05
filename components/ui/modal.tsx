@@ -19,7 +19,7 @@ interface ModalProps {
 }
 
 /**
- * Accessible modal built on the native <dialog> (focus trap, Esc, top layer).
+ * Accessible modal built on the native <dialog> (focus trap, Esc, rendered above the page).
  * Mount it to open, unmount it to close.
  */
 export function Modal({ title, description, onClose, onSubmit, footer, busy = false, size = "md", children }: ModalProps) {

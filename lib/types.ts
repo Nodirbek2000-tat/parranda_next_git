@@ -10,7 +10,7 @@
 export type Role = "ADMIN" | "WAREHOUSE" | "LOGISTICS" | "VET" | "OWNER";
 /** Roles an admin creates via `POST /api/users` (OWNER comes with a household). */
 export type StaffRole = Exclude<Role, "OWNER">;
-export type PoultryType = "LAYER" | "BROILER" | "BREEDER";
+export type PoultryType = "BROILER" | "BREEDER";
 export type MovementType = "DISTRIBUTE" | "RETURN" | "DEATH" | "OUT";
 export type ProductCategory = "FEED" | "VET_DRUG" | "VACCINE" | "EQUIPMENT" | "OTHER";
 export type ProductUnit = "kg" | "dona" | "litr" | "qop";
@@ -142,7 +142,6 @@ export interface DailyReport {
   date: string;
   bird_count: number;
   feed_kg: number;
-  eggs: number;
   meat_kg: number | null;
   deaths: number;
   avg_weight_g: number | null;
@@ -204,9 +203,8 @@ export interface LowStockItem {
 
 export interface ProductionPoint {
   date: string;
-  eggs: number;
+  meat_kg: number;
   feed_kg: number;
-  meat_kg?: number;
 }
 
 export interface AdminDashboard {
@@ -221,7 +219,6 @@ export interface AdminDashboard {
   deaths_30d_center: number;
   feed_stock_kg: number;
   feed_used_today: number;
-  eggs_today: number;
   reports_today: number;
   households_without_report_today: HouseholdShort[];
   low_stock: LowStockItem[];
@@ -239,7 +236,6 @@ export interface AdminDashboard {
 export interface ProductionMonth {
   /** YYYY-MM */
   month: string;
-  eggs: number;
   meat_kg: number;
   feed_kg: number;
   reports: number;
@@ -256,9 +252,10 @@ export interface OwnerDashboard {
   household: Household;
   bird_count: number;
   today_report: DailyReport | null;
-  eggs_7d: number;
   feed_7d: number;
-  meat_7d?: number;
+  meat_7d: number;
+  /** feed_7d / meat_7d; `null` when no meat in 7 days. */
+  fcr_7d: number | null;
   deaths_7d: number;
   deaths_30d: number;
   batches: HouseholdBatch[];
@@ -364,7 +361,6 @@ export interface MovementCreatePayload {
 export interface DailyReportCreatePayload {
   date?: string;
   feed_kg: number;
-  eggs: number;
   meat_kg?: number;
   deaths?: number;
   avg_weight_g?: number;
@@ -418,14 +414,15 @@ export interface Kpi {
 export type KpiKey =
   | "birds_end"
   | "birds_avg"
-  | "eggs"
+  | "meat_kg"
   | "feed_kg"
   | "deaths"
   | "distributed"
   | "returned"
   | "reports"
-  | "laying_rate_pct"
-  | "feed_per_egg_g"
+  | "fcr"
+  | "meat_per_bird_kg"
+  | "avg_weight_g"
   | "feed_per_bird_day_kg"
   | "mortality_pct"
   | "report_discipline_pct";
@@ -443,11 +440,13 @@ export interface StatsPeriod {
 export interface OverviewSeriesPoint {
   date: string;
   birds: number;
-  layer_birds: number;
-  eggs: number;
+  /** Σ meat_kg of the day's reports. */
+  meat_kg: number;
   feed_kg: number;
-  /** Σ meat_kg of the day's reports (broilers). */
-  meat_kg?: number;
+  /** Bird-weighted mean of the day's reported average weights (g). */
+  avg_weight_g: number | null;
+  /** feed_kg / meat_kg of the day; `null` without meat. */
+  fcr: number | null;
   deaths: number;
   distributed: number;
   returned: number;
@@ -457,7 +456,6 @@ export interface OverviewSeriesPoint {
   reported_expected: number;
   /** Households due that day (today: due so far). */
   expected_reports: number;
-  laying_rate_pct: number | null;
 }
 
 export interface PoultryTypeStat {
@@ -477,11 +475,11 @@ export interface DistrictStat {
   households: number;
   households_active: number;
   birds_end: number;
-  eggs: number;
+  meat_kg: number;
   feed_kg: number;
+  fcr: number | null;
   deaths: number;
   reports: number;
-  laying_rate_pct: number | null;
   mortality_pct: number | null;
   report_discipline_pct: number | null;
 }
@@ -490,10 +488,12 @@ export interface RankedHousehold {
   household: HouseholdShort;
   district: string;
   is_active: boolean;
-  laying_rate_pct: number | null;
-  eggs: number;
+  /** Feed conversion ratio (feed_kg / meat_kg), lower is better. */
+  fcr: number | null;
+  meat_kg: number;
+  feed_kg: number;
   reports: number;
-  layer_birds_avg: number | null;
+  avg_weight_g: number | null;
 }
 
 export interface HighMortalityItem {
@@ -510,8 +510,6 @@ export interface OverviewStats {
   generated_at: string;
   /** Echo of the dashboard filters (region, district, poultry_type). */
   filters?: { region?: string; district?: string; poultry_type?: PoultryType };
-  /** Meat output of the period (TZ §4). */
-  meat?: { total_kg: number; previous_total_kg: number; avg_weight_g: number | null };
   households: { total: number; active: number; with_birds: number; reporting: number };
   kpis: KpiSet;
   center: { birds_end: number; deaths: number; out: number };
@@ -526,9 +524,10 @@ export interface OverviewStats {
 export interface HouseholdSeriesPoint {
   date: string;
   birds: number;
-  layer_birds: number;
-  eggs: number;
+  meat_kg: number;
   feed_kg: number;
+  avg_weight_g: number | null;
+  fcr: number | null;
   deaths: number;
   distributed: number;
   returned: number;
@@ -536,7 +535,6 @@ export interface HouseholdSeriesPoint {
   expected: boolean;
   /** Today, due and not reported yet (not a missing day). */
   pending: boolean;
-  laying_rate_pct: number | null;
 }
 
 export interface HouseholdStats {

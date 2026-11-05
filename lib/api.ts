@@ -176,7 +176,7 @@ function refreshOnce(): Promise<RefreshOutcome> {
 }
 
 export interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   query?: Query;
   /** Send the bearer token and handle 401 with refresh (default true). */
@@ -398,6 +398,9 @@ export const api = {
   },
   patch<T>(path: string, body: unknown, options: Omit<RequestOptions, "method" | "body"> = {}): Promise<T> {
     return request<T>(path, { ...options, method: "PATCH", body });
+  },
+  delete<T = null>(path: string, options: Omit<RequestOptions, "method" | "body"> = {}): Promise<T> {
+    return request<T>(path, { ...options, method: "DELETE" });
   },
 };
 

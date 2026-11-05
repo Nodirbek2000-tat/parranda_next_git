@@ -21,7 +21,7 @@ export interface TimeSeries {
   /** Area wash colour (default: accent at 12 %, contract 6.2). */
   fill?: string;
   /**
-   * Values of report-based sums (eggs, feed) mean nothing on a day without reports: with `missing`
+   * Values of report-based sums (meat, feed) mean nothing on a day without reports: with `missing`
    * set on the chart they become gaps (default). `false` keeps the value (e.g. deaths from movements).
    */
   gapWhenMissing?: boolean;
@@ -43,7 +43,7 @@ interface TimeChartProps {
   axisFormat?: (value: number) => string;
   height?: number;
   reference?: ReferenceLine;
-  /** Accessible summary, e.g. "Tuxum, 30 kun, jami 61 200 dona". */
+  /** Accessible summary, e.g. "Go‘sht, 30 kun, jami 1 250 kg". */
   ariaLabel: string;
   /** Force a legend (default: shown for two or more series). */
   legend?: boolean;
@@ -106,7 +106,7 @@ export function TimeChart({
   const count = dates.length;
   const isMissing = (index: number) => Boolean(missing?.[index]);
   const anyMissing = Boolean(missing?.some(Boolean));
-  // Report-based sums become gaps on days without reports (a fake 0 would read as “no eggs”).
+  // Report-based sums become gaps on days without reports (a fake 0 would read as “no meat”).
   const series: readonly TimeSeries[] = missing
     ? rawSeries.map((item) =>
         item.gapWhenMissing === false

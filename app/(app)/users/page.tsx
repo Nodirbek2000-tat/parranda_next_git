@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound, Lock, LockOpen, MonitorX, Pencil, Send, ShieldCheck, Unlink, UserPlus, Users } from "lucide-react";
+import { KeyRound, Lock, LockOpen, MonitorX, Pencil, Send, ShieldCheck, Trash2, Unlink, UserPlus, Users } from "lucide-react";
 import { useCurrentUser } from "@/lib/auth";
 import { formatDate, formatNumber, ROLE_LABELS } from "@/lib/format";
 import { useDebounced, usePagedApi } from "@/lib/use-api";
@@ -219,6 +219,15 @@ export default function UsersPage() {
                       onClick={() => account.setActive(row, !row.is_active)}
                     >
                       {row.is_active ? <Lock className="size-4" aria-hidden /> : <LockOpen className="size-4" aria-hidden />}
+                    </IconButton>
+                  )}
+                  {row.id !== me.id && (
+                    <IconButton
+                      label={`${row.full_name}: o‘chirish`}
+                      tone="quiet-danger"
+                      onClick={() => account.deleteAccount(row)}
+                    >
+                      <Trash2 className="size-4" aria-hidden />
                     </IconButton>
                   )}
                 </>

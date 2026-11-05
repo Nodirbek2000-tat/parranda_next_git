@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Beef, Bird, CircleCheck, ClipboardList, Egg, Package, Skull, Wheat } from "lucide-react";
-import { formatDate, formatNumber, todayIso } from "@/lib/format";
+import { Beef, Bird, CircleCheck, ClipboardList, Package, Skull, Wheat } from "lucide-react";
+import { formatDate, formatFixed, formatNumber, todayIso } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import type { HouseholdBatch, OwnerDashboard } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
@@ -102,16 +102,12 @@ export default function MyHouseholdPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Parranda soni" icon={Bird} value={formatNumber(data.bird_count)} />
-        {(data.meat_7d ?? 0) > 0 && (data.eggs_7d ?? 0) === 0 ? (
-          <StatCard label="7 kunda go‘sht" icon={Beef} value={`${formatNumber(data.meat_7d ?? 0, 1)} kg`} />
-        ) : (
-          <StatCard
-            label="7 kunda tuxum"
-            icon={Egg}
-            value={formatNumber(data.eggs_7d)}
-            hint={(data.meat_7d ?? 0) > 0 ? `go‘sht: ${formatNumber(data.meat_7d ?? 0, 1)} kg` : undefined}
-          />
-        )}
+        <StatCard
+          label="7 kunda go‘sht"
+          icon={Beef}
+          value={`${formatNumber(data.meat_7d, 1)} kg`}
+          hint={data.fcr_7d !== null ? `FCR (yem / go‘sht): ${formatFixed(data.fcr_7d, 2)}` : undefined}
+        />
         <StatCard label="7 kunda yem" icon={Wheat} value={`${formatNumber(data.feed_7d)} kg`} />
         <StatCard
           label="30 kunda nobud"
@@ -134,7 +130,8 @@ export default function MyHouseholdPage() {
               <Summary
                 items={[
                   ["Parranda", formatNumber(today.bird_count)],
-                  ["Tuxum", `${formatNumber(today.eggs)} dona`],
+                  ["Go‘sht", today.meat_kg !== null ? `${formatNumber(today.meat_kg)} kg` : "—"],
+                  ["O‘rtacha vazn", today.avg_weight_g !== null ? `${formatNumber(today.avg_weight_g)} g` : "—"],
                   ["Yem sarfi", `${formatNumber(today.feed_kg)} kg`],
                   ["Nobud", `${formatNumber(today.deaths)} dona`],
                 ]}

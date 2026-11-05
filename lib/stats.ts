@@ -42,7 +42,14 @@ export const KPI_META: Record<KpiKey, KpiMeta> = {
     direction: "neutral",
     hint: "Davrdagi har kun oxiridagi parranda sonining o‘rtachasi",
   },
-  eggs: { label: "Tuxum", unit: "dona", digits: 0, direction: "up", hint: "Kunlik hisobotlardagi tuxumlar yig‘indisi" },
+  meat_kg: {
+    label: "Go‘sht",
+    unit: "kg",
+    digits: 1,
+    trim: true,
+    direction: "up",
+    hint: "Kunlik hisobotlardagi go‘sht (kg) yig‘indisi — asosiy mahsulot",
+  },
   feed_kg: {
     label: "Yem sarfi",
     unit: "kg",
@@ -73,20 +80,26 @@ export const KPI_META: Record<KpiKey, KpiMeta> = {
     hint: "Xonadonlardan qaytarilgan parranda",
   },
   reports: { label: "Hisobotlar", unit: "ta", digits: 0, direction: "up", hint: "Kiritilgan kunlik hisobotlar soni" },
-  laying_rate_pct: {
-    label: "Tuxumdorlik",
+  fcr: {
+    label: "FCR (yem / go‘sht)",
     unit: "",
-    digits: 1,
-    percent: true,
-    direction: "up",
-    hint: "Tuxum ÷ tuxum yo‘nalishidagi parranda, faqat hisobot kiritilgan kunlar",
-  },
-  feed_per_egg_g: {
-    label: "Yem / tuxum",
-    unit: "g",
-    digits: 1,
+    digits: 2,
     direction: "down",
-    hint: "Tuxum yo‘nalishidagi parrandaga to‘g‘ri keladigan yem (g) ÷ tuxum",
+    hint: "Yemni go‘shtga aylantirish koeffitsienti: yem (kg) ÷ go‘sht (kg). Qancha past bo‘lsa, shuncha yaxshi",
+  },
+  meat_per_bird_kg: {
+    label: "Go‘sht / parranda",
+    unit: "kg",
+    digits: 3,
+    direction: "up",
+    hint: "Davrdagi go‘sht (kg) ÷ davrdagi o‘rtacha parranda soni",
+  },
+  avg_weight_g: {
+    label: "O‘rtacha vazn",
+    unit: "g",
+    digits: 0,
+    direction: "up",
+    hint: "Hisobotlardagi o‘rtacha vazn, parranda soni bo‘yicha tortilgan o‘rtacha",
   },
   feed_per_bird_day_kg: {
     label: "Yem / parranda / kun",
@@ -115,7 +128,7 @@ export const KPI_META: Record<KpiKey, KpiMeta> = {
   },
 };
 
-/** Value with the metric's own precision and unit: "81.3%", "135.7 g", "61 200 dona". */
+/** Value with the metric's own precision and unit: "4.2%", "1.85", "2 350 g", "61 200 dona". */
 export function formatKpiValue(key: KpiKey, value: number | null | undefined, withUnit = true): string {
   const meta = KPI_META[key];
   if (value === null || value === undefined) return "—";
@@ -178,12 +191,10 @@ export function mortalityTone(
 /* ---------- Categorical colours (6.2) ---------- */
 
 /**
- * LAYER / BROILER as in contract 6.2. BREEDER was #12372A (contrast 2.05 : 1 against LAYER, the two
- * greens were indistinguishable in the donut); a light blue keeps ≥ 3 : 1 against LAYER and a
- * different hue from BROILER (safe for red-green colour blindness).
+ * BROILER as in contract 6.2; BREEDER is a light blue, a different hue from BROILER (safe for red-green
+ * colour blindness).
  */
 export const POULTRY_COLORS: Record<PoultryType, string> = {
-  LAYER: "#2F6B3F",
   BROILER: "#E8B04A",
   BREEDER: "#9DBFDC",
 };

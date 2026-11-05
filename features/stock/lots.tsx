@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarClock, Layers } from "lucide-react";
+import { Boxes, CalendarClock } from "lucide-react";
 import { diffDays, formatDate, formatNumber, todayIso } from "@/lib/format";
 import { LOT_STATUS } from "@/lib/status";
 import { usePagedApi } from "@/lib/use-api";
@@ -188,7 +188,7 @@ export function ProductLotsCard({ productId }: { productId: number | string }) {
           <TableSkeleton rows={3} />
         ) : data.results.length === 0 ? (
           <EmptyState
-            icon={Layers}
+            icon={Boxes}
             title="Qoldig‘i bor partiya yo‘q"
             description="Kirimda partiya raqami va yaroqlilik muddatini ko‘rsating."
           />

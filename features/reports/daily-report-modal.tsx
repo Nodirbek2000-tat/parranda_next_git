@@ -28,10 +28,9 @@ export function DailyReportModal({ household, batches, sendHousehold, onClose, o
   const confirmAction = useConfirmedAction();
   const form = useForm({
     date: todayIso(),
-    eggs: "",
+    meat_kg: "",
     feed_kg: "",
     deaths: "0",
-    meat_kg: "",
     avg_weight_g: "",
     batch: "",
     note: "",
@@ -44,7 +43,6 @@ export function DailyReportModal({ household, batches, sendHousehold, onClose, o
     (values) =>
       collect([
         ["date", notFutureDate(values.date)],
-        ["eggs", nonNegativeInt(values.eggs)],
         ["feed_kg", nonNegativeNumber(values.feed_kg)],
         [
           "deaths",
@@ -57,7 +55,6 @@ export function DailyReportModal({ household, batches, sendHousehold, onClose, o
     (values) => {
       const payload: DailyReportCreatePayload = {
         date: values.date,
-        eggs: toNumber(values.eggs) ?? 0,
         feed_kg: toNumber(values.feed_kg) ?? 0,
         deaths: toNumber(values.deaths) ?? 0,
       };
@@ -80,7 +77,10 @@ export function DailyReportModal({ household, batches, sendHousehold, onClose, o
                 items={[
                   ["Xonadon", householdLabel(household)],
                   ["Sana", formatDate(payload.date)],
-                  ["Tuxum", `${formatNumber(payload.eggs)} dona`],
+                  ["Go‘sht", payload.meat_kg !== undefined ? `${formatNumber(payload.meat_kg)} kg` : "—"],
+                  ...(payload.avg_weight_g !== undefined
+                    ? ([["O‘rtacha vazn", `${formatNumber(payload.avg_weight_g)} g`]] as const)
+                    : []),
                   ["Yem", `${formatNumber(payload.feed_kg)} kg`],
                   ["Nobud", `${formatNumber(payload.deaths)} dona`],
                 ]}
@@ -123,8 +123,12 @@ export function DailyReportModal({ household, batches, sendHousehold, onClose, o
         <Field label="Sana" required className="sm:col-span-2" {...form.field("date")}>
           <Input {...form.control("date")} type="date" max={todayIso()} />
         </Field>
-        <Field label="Tuxum (dona)" required {...form.field("eggs")}>
-          <Input {...form.control("eggs")} type="number" inputMode="numeric" min={0} step={1} />
+        {/* Meat is the main output; optional because a growing flock has days without meat output. */}
+        <Field label="Go‘sht (kg)" hint="Bugun olingan go‘sht; bo‘lmasa bo‘sh qoldiring" {...form.field("meat_kg")}>
+          <Input {...form.control("meat_kg")} type="number" inputMode="decimal" min={0} step="0.1" />
+        </Field>
+        <Field label="O‘rtacha vazn (g)" {...form.field("avg_weight_g")}>
+          <Input {...form.control("avg_weight_g")} type="number" inputMode="decimal" min={0} step="1" />
         </Field>
         <Field label="Yem sarfi (kg)" required {...form.field("feed_kg")}>
           <Input {...form.control("feed_kg")} type="number" inputMode="decimal" min={0} step="0.1" />
@@ -132,8 +136,13 @@ export function DailyReportModal({ household, batches, sendHousehold, onClose, o
         <Field label="Nobud bo‘lgan (dona)" {...form.field("deaths")}>
           <Input {...form.control("deaths")} type="number" inputMode="numeric" min={0} step={1} />
         </Field>
-        {deaths > 0 && batches.length > 1 ? (
-          <Field label="Partiya (nobud uchun)" hint="Tanlanmasa — eng ko‘p parrandali partiya" {...form.field("batch")}>
+        {deaths > 0 && batches.length > 1 && (
+          <Field
+            label="Partiya (nobud uchun)"
+            hint="Tanlanmasa — eng ko‘p parrandali partiya"
+            className="sm:col-span-2"
+            {...form.field("batch")}
+          >
             <Select {...form.control("batch")}>
               <option value="">Avtomatik</option>
               {batches.map((item) => (
@@ -143,15 +152,7 @@ export function DailyReportModal({ household, batches, sendHousehold, onClose, o
               ))}
             </Select>
           </Field>
-        ) : (
-          <div className="hidden sm:block" />
         )}
-        <Field label="Go‘sht (kg)" {...form.field("meat_kg")}>
-          <Input {...form.control("meat_kg")} type="number" inputMode="decimal" min={0} step="0.1" />
-        </Field>
-        <Field label="O‘rtacha vazn (g)" {...form.field("avg_weight_g")}>
-          <Input {...form.control("avg_weight_g")} type="number" inputMode="decimal" min={0} step="1" />
-        </Field>
         <Field label="Izoh" className="sm:col-span-2" {...form.field("note")}>
           <Textarea {...form.control("note")} rows={2} />
         </Field>

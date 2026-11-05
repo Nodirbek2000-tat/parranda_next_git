@@ -173,7 +173,6 @@ export function formatFileSize(bytes: number): string {
 }
 
 export const POULTRY_TYPE_LABELS: Record<PoultryType, string> = {
-  LAYER: "Tuxum yo‘nalishi",
   BROILER: "Go‘sht yo‘nalishi",
   BREEDER: "Naslli",
 };

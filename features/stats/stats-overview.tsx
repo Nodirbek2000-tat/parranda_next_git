@@ -29,14 +29,16 @@ import { PeriodPicker, usePeriodQuery, useUrlParams } from "@/components/stats/p
 import { WarehouseStatsSection } from "./warehouse-stats";
 
 const KPI_ORDER: readonly KpiKey[] = [
-  "eggs",
-  "laying_rate_pct",
+  "meat_kg",
+  "fcr",
+  "meat_per_bird_kg",
+  "avg_weight_g",
   "feed_kg",
-  "feed_per_egg_g",
   "feed_per_bird_day_kg",
   "deaths",
   "mortality_pct",
   "report_discipline_pct",
+  "reports",
 ];
 
 /**
@@ -53,6 +55,8 @@ function isValidThreshold(text: string): boolean {
 
 const count = (unit: string) => (value: number) => `${formatNumber(value)} ${unit}`;
 const kg = (value: number) => `${formatNumber(value, 1)} kg`;
+const grams = (value: number) => `${formatNumber(value, 0)} g`;
+const ratio = (value: number) => formatKpiValue("fcr", value);
 
 /** /stats (contract 6.3): company-wide analytics for ADMIN and WAREHOUSE. */
 export function StatsOverview() {
@@ -109,8 +113,9 @@ function OverviewBody({
   const { series, kpis } = data;
   const dates = series.map((point) => point.date);
   const pick = <K extends keyof (typeof series)[number]>(key: K) => series.map((point) => point[key]);
-  const eggs = pick("eggs");
-  const laying = pick("laying_rate_pct");
+  const meat = pick("meat_kg");
+  const fcr = pick("fcr");
+  const weight = pick("avg_weight_g");
   const feed = pick("feed_kg");
   const deaths = pick("deaths");
   const reportedExpected = pick("reported_expected");
@@ -118,14 +123,15 @@ function OverviewBody({
   const distributed = pick("distributed");
   const returned = pick("returned");
   const days = data.period.days;
-  // A day without any report row: eggs / feed are unknown there, not 0 (charts draw a hatched gap).
+  // A day without any report row: meat / feed are unknown there, not 0 (charts draw a hatched gap).
   const missing = series.map((point) => point.reports === 0);
   const gapped = (values: readonly number[]) => values.map((value, index) => (missing[index] ? null : value));
   const totalDeaths = (kpis.deaths.value ?? 0) + data.center.deaths;
 
   const trends: Partial<Record<KpiKey, readonly (number | null)[]>> = {
-    eggs: gapped(eggs),
-    laying_rate_pct: laying,
+    meat_kg: gapped(meat),
+    fcr,
+    avg_weight_g: weight,
     feed_kg: gapped(feed),
     deaths,
   };
@@ -140,7 +146,7 @@ function OverviewBody({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         {KPI_ORDER.map((key) => (
           <StatKpiCard
             key={key}
@@ -169,32 +175,38 @@ function OverviewBody({
       </p>
 
       <div className="grid min-w-0 gap-4 sm:gap-5 lg:grid-cols-2">
-        <ChartCard title="Tuxum" description={`dona / kun · ${days} kun`} summary={`Jami: ${formatNumber(kpis.eggs.value)}`}>
-          {isEmptySeries([{ values: eggs }]) ? (
-            <NoData />
+        <ChartCard
+          title="Go‘sht"
+          description={`kg / kun · ${days} kun`}
+          summary={`Jami: ${formatKpiValue("meat_kg", kpis.meat_kg.value)}`}
+        >
+          {isEmptySeries([{ values: meat }]) ? (
+            <NoData title="Bu davrda go‘sht hisobotlari yo‘q" />
           ) : (
             <TimeChart
               dates={dates}
-              series={[{ key: "eggs", label: "Tuxum", color: CHART_COLORS.primary, values: eggs, kind: "area" }]}
+              series={[{ key: "meat", label: "Go‘sht", color: CHART_COLORS.primary, values: meat, kind: "area" }]}
               missing={missing}
-              format={count("dona")}
-              ariaLabel={`Kunlik tuxum, ${days} kun, jami ${formatNumber(kpis.eggs.value)} dona`}
+              format={kg}
+              ariaLabel={`Kunlik go‘sht, ${days} kun, jami ${formatNumber(kpis.meat_kg.value, 1)} kg`}
             />
           )}
         </ChartCard>
 
-        <ChartCard title="Tuxumdorlik" description={`kunlik, % · ${days} kun`} summary={formatPercent(kpis.laying_rate_pct.value)}>
-          {laying.every((value) => value === null) ? (
+        <ChartCard
+          title="FCR (yem / go‘sht)"
+          description={`kunlik, past bo‘lsa yaxshi · ${days} kun`}
+          summary={`Davr bo‘yicha: ${formatKpiValue("fcr", kpis.fcr.value)}`}
+        >
+          {fcr.every((value) => value === null) ? (
             <NoData />
           ) : (
             <TimeChart
               dates={dates}
-              series={[
-                { key: "laying", label: "Tuxumdorlik", color: CHART_COLORS.accent, values: laying, kind: "line" },
-              ]}
-              format={(value) => formatPercent(value)}
-              axisFormat={(value) => `${formatNumber(value, 1)}%`}
-              ariaLabel={`Kunlik tuxumdorlik, davr bo‘yicha ${formatPercent(kpis.laying_rate_pct.value)}`}
+              series={[{ key: "fcr", label: "FCR", color: CHART_COLORS.accent, values: fcr, kind: "line" }]}
+              format={ratio}
+              axisFormat={(value) => formatNumber(value, 1)}
+              ariaLabel={`Kunlik FCR, davr bo‘yicha ${formatKpiValue("fcr", kpis.fcr.value)}`}
             />
           )}
         </ChartCard>
@@ -217,31 +229,22 @@ function OverviewBody({
           )}
         </ChartCard>
 
-        {(data.meat?.total_kg ?? 0) > 0 && (
-          <ChartCard
-            title="Go‘sht ishlab chiqarish"
-            description={`kg / kun · ${days} kun`}
-            summary={`Jami: ${formatNumber(data.meat?.total_kg ?? 0, 1)} kg${
-              data.meat?.avg_weight_g ? ` · o‘rtacha vazn ${formatNumber(data.meat.avg_weight_g, 0)} g` : ""
-            }`}
-          >
+        <ChartCard
+          title="O‘rtacha vazn"
+          description={`g, hisobotlar bo‘yicha · ${days} kun`}
+          summary={`Davr bo‘yicha: ${formatKpiValue("avg_weight_g", kpis.avg_weight_g.value)}`}
+        >
+          {weight.every((value) => value === null) ? (
+            <NoData title="Bu davrda vazn kiritilmagan" />
+          ) : (
             <TimeChart
               dates={dates}
-              series={[
-                {
-                  key: "meat",
-                  label: "Go‘sht",
-                  color: CHART_COLORS.primary,
-                  values: series.map((point) => point.meat_kg ?? 0),
-                  kind: "bar",
-                },
-              ]}
-              missing={missing}
-              format={kg}
-              ariaLabel={`Kunlik go‘sht, jami ${formatNumber(data.meat?.total_kg ?? 0, 1)} kg`}
+              series={[{ key: "weight", label: "O‘rtacha vazn", color: CHART_COLORS.primary, values: weight, kind: "line" }]}
+              format={grams}
+              ariaLabel={`Kunlik o‘rtacha vazn, davr bo‘yicha ${formatKpiValue("avg_weight_g", kpis.avg_weight_g.value)}`}
             />
-          </ChartCard>
-        )}
+          )}
+        </ChartCard>
 
         <ChartCard
           title="Nobud bo‘lish"
@@ -341,12 +344,12 @@ function OverviewBody({
       <div className="grid min-w-0 gap-4 sm:gap-5 2xl:grid-cols-2">
         <RankingCard
           title="Eng yaxshi 5 xonadon"
-          description="Tuxumdorlik bo‘yicha (kamida 3 ta hisobot)"
+          description="Eng past FCR (yem / go‘sht) bo‘yicha, kamida 3 ta hisobot"
           rows={data.top_households}
         />
         <RankingCard
           title="Eng past 5 xonadon"
-          description="Tuxumdorlik bo‘yicha (kamida 3 ta hisobot)"
+          description="Eng yuqori FCR (yem / go‘sht) bo‘yicha, kamida 3 ta hisobot"
           rows={data.bottom_households}
           emptyTitle={
             data.top_households.length > 0
@@ -476,8 +479,8 @@ const DISTRICT_COLUMNS: Column<DistrictStat>[] = [
     cell: (row) => `${formatNumber(row.households_active)} / ${formatNumber(row.households)}`,
   },
   { key: "birds", header: "Parranda", align: "right", cell: (row) => formatNumber(row.birds_end) },
-  { key: "eggs", header: "Tuxum", align: "right", cell: (row) => formatNumber(row.eggs) },
-  { key: "laying", header: "Tuxumdorlik", align: "right", cell: (row) => formatPercent(row.laying_rate_pct) },
+  { key: "meat", header: "Go‘sht, kg", align: "right", cell: (row) => formatNumber(row.meat_kg, 1) },
+  { key: "fcr", header: "FCR", align: "right", cell: (row) => formatKpiValue("fcr", row.fcr) },
   { key: "mortality", header: "O‘lim", align: "right", cell: (row) => formatPercent(row.mortality_pct) },
   { key: "discipline", header: "Intizom", align: "right", cell: (row) => formatPercent(row.report_discipline_pct) },
 ];
@@ -539,19 +542,19 @@ const RANK_COLUMNS: Column<RankedHousehold>[] = [
     ),
   },
   {
-    key: "laying",
-    header: "Tuxumdorlik",
+    key: "fcr",
+    header: "FCR",
     align: "right",
-    cell: (row) => <span className="font-medium">{formatPercent(row.laying_rate_pct)}</span>,
+    cell: (row) => <span className="font-medium">{formatKpiValue("fcr", row.fcr)}</span>,
   },
-  { key: "eggs", header: "Tuxum", align: "right", cell: (row) => formatNumber(row.eggs) },
+  { key: "meat", header: "Go‘sht, kg", align: "right", cell: (row) => formatNumber(row.meat_kg, 1) },
   { key: "reports", header: "Hisobot", align: "right", cell: (row) => formatNumber(row.reports) },
   {
-    key: "layers",
-    header: "O‘rt. parranda",
+    key: "weight",
+    header: "O‘rt. vazn, g",
     align: "right",
     hideOnMobile: true,
-    cell: (row) => formatNumber(row.layer_birds_avg, 1),
+    cell: (row) => formatNumber(row.avg_weight_g, 0),
   },
 ];
 
@@ -559,7 +562,7 @@ function RankingCard({
   title,
   description,
   rows,
-  emptyTitle = "Kamida 3 ta hisobotli, tuxum yo‘nalishidagi xonadon yo‘q",
+  emptyTitle = "Kamida 3 ta hisobotli, go‘sht kiritgan xonadon yo‘q",
 }: {
   title: string;
   description: string;

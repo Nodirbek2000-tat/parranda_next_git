@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, Beef, X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { formatNumber, POULTRY_TYPE_LABELS } from "@/lib/format";
 import { CHART_COLORS } from "@/lib/stats";
 import { useApi } from "@/lib/use-api";
@@ -12,15 +12,14 @@ import { isEmptySeries, TimeChart } from "@/components/charts/time-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, SectionTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/field";
-import { StatCard } from "@/components/ui/stat-card";
 import { ChartCard, KpiGridSkeleton } from "@/components/stats/chart-card";
 import { StatKpiCard } from "@/components/stats/kpi-card";
 import { Loadable, NoData } from "@/components/stats/loadable";
 import { PeriodPicker, usePeriodQuery, useUrlParams } from "@/components/stats/period-picker";
 import { MiniBarChart } from "./mini-bar-chart";
 
-const PERIOD_KPIS: readonly KpiKey[] = ["eggs", "laying_rate_pct", "mortality_pct", "report_discipline_pct"];
-const POULTRY_TYPES: readonly PoultryType[] = ["LAYER", "BROILER", "BREEDER"];
+const PERIOD_KPIS: readonly KpiKey[] = ["meat_kg", "fcr", "avg_weight_g", "mortality_pct", "report_discipline_pct"];
+const POULTRY_TYPES: readonly PoultryType[] = ["BROILER", "BREEDER"];
 
 /**
  * TZ §4 "grafiklar, diagrammalar, filtrlar va davr tanlash": the dashboard's own period (URL
@@ -113,7 +112,7 @@ export function DashboardPeriodSection() {
         )}
       </div>
 
-      <Loadable resource={overview} skeleton={<KpiGridSkeleton count={4} />}>
+      <Loadable resource={overview} skeleton={<KpiGridSkeleton count={5} />}>
         {(data) => <PeriodBody data={data} />}
       </Loadable>
     </section>
@@ -123,11 +122,10 @@ export function DashboardPeriodSection() {
 function PeriodBody({ data }: { data: OverviewStats }) {
   const { series, kpis } = data;
   const dates = series.map((point) => point.date);
-  const eggs = series.map((point) => point.eggs);
-  const meat = series.map((point) => point.meat_kg ?? 0);
+  const meat = series.map((point) => point.meat_kg);
+  const weight = series.map((point) => point.avg_weight_g);
   const missing = series.map((point) => point.reports === 0);
-  const meatTotal = data.meat?.total_kg ?? 0;
-  const meatPrevious = data.meat?.previous_total_kg ?? 0;
+  const meatTotal = kpis.meat_kg.value ?? 0;
   const days = data.period.days;
 
   return (
@@ -136,42 +134,38 @@ function PeriodBody({ data }: { data: OverviewStats }) {
         {PERIOD_KPIS.map((key) => (
           <StatKpiCard key={key} kpiKey={key} kpi={kpis[key]} period={data.period} />
         ))}
-        <StatCard
-          label="Go‘sht ishlab chiqarish"
-          icon={Beef}
-          value={`${formatNumber(meatTotal, 1)} kg`}
-          hint={`oldingi davr: ${formatNumber(meatPrevious, 1)} kg${
-            data.meat?.avg_weight_g ? ` · o‘rtacha vazn ${formatNumber(data.meat.avg_weight_g, 0)} g` : ""
-          }`}
-        />
       </div>
       <p className="-mt-1 text-[13px] text-muted">
         {formatNumber(data.households.total)} ta xonadon · parranda (xonadonlarda){" "}
         <span className="font-medium tabular-nums text-ink">{formatNumber(kpis.birds_end.value)}</span>
       </p>
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-        <ChartCard title="Tuxum" description={`dona / kun · ${days} kun`} summary={`Jami: ${formatNumber(kpis.eggs.value)}`}>
-          {isEmptySeries([{ values: eggs }]) ? (
-            <NoData />
-          ) : (
-            <TimeChart
-              dates={dates}
-              series={[{ key: "eggs", label: "Tuxum", color: CHART_COLORS.primary, values: eggs, kind: "area" }]}
-              missing={missing}
-              format={(value) => `${formatNumber(value)} dona`}
-              ariaLabel={`Kunlik tuxum, ${days} kun`}
-            />
-          )}
-        </ChartCard>
         <ChartCard title="Go‘sht" description={`kg / kun · ${days} kun`} summary={`Jami: ${formatNumber(meatTotal, 1)} kg`}>
           {meatTotal <= 0 ? (
             <NoData title="Bu davrda go‘sht hisobotlari yo‘q" />
           ) : (
             <TimeChart
               dates={dates}
-              series={[{ key: "meat", label: "Go‘sht", color: CHART_COLORS.accent, values: meat, kind: "area" }]}
+              series={[{ key: "meat", label: "Go‘sht", color: CHART_COLORS.primary, values: meat, kind: "area" }]}
+              missing={missing}
               format={(value) => `${formatNumber(value, 1)} kg`}
               ariaLabel={`Kunlik go‘sht, ${days} kun, jami ${formatNumber(meatTotal, 1)} kg`}
+            />
+          )}
+        </ChartCard>
+        <ChartCard
+          title="O‘rtacha vazn"
+          description={`g · ${days} kun`}
+          summary={`Davr bo‘yicha: ${kpis.avg_weight_g.value !== null ? `${formatNumber(kpis.avg_weight_g.value, 0)} g` : "—"}`}
+        >
+          {isEmptySeries([{ values: weight }]) ? (
+            <NoData title="Bu davrda vazn kiritilmagan" />
+          ) : (
+            <TimeChart
+              dates={dates}
+              series={[{ key: "weight", label: "O‘rtacha vazn", color: CHART_COLORS.accent, values: weight, kind: "line" }]}
+              format={(value) => `${formatNumber(value, 0)} g`}
+              ariaLabel={`Kunlik o‘rtacha vazn, ${days} kun`}
             />
           )}
         </ChartCard>
@@ -181,7 +175,7 @@ function PeriodBody({ data }: { data: OverviewStats }) {
 }
 
 export function PeriodSectionSkeleton() {
-  return <KpiGridSkeleton count={4} />;
+  return <KpiGridSkeleton count={5} />;
 }
 
 const monthLabel = (key: string) => {
@@ -189,33 +183,22 @@ const monthLabel = (key: string) => {
   return `${month}.${year}`;
 };
 
-/** TZ §4 "Oylik ishlab chiqarish dinamikasi": 12 months of eggs, meat and feed from the daily reports. */
+/** TZ §4 "Oylik ishlab chiqarish dinamikasi": 12 months of meat and feed from the daily reports. */
 export function MonthlyProductionCard({ months }: { months: readonly ProductionMonth[] }) {
   const data = (pick: (month: ProductionMonth) => number) => months.map((month) => ({ date: month.month, value: pick(month) }));
-  const hasMeat = months.some((month) => month.meat_kg > 0);
   return (
     <Card>
       <CardHeader title="Oylik ishlab chiqarish" description="So‘nggi 12 oy, kunlik hisobotlar bo‘yicha" />
-      <CardBody className={`grid gap-8 sm:grid-cols-2 ${hasMeat ? "xl:grid-cols-3" : ""}`}>
+      <CardBody className="grid gap-8 sm:grid-cols-2">
         <MiniBarChart
-          title="Tuxum"
-          unit="dona"
-          data={data((month) => month.eggs)}
+          title="Go‘sht"
+          unit="kg"
+          digits={1}
+          data={data((month) => month.meat_kg)}
           windowLabel="12 oy"
           formatLabel={monthLabel}
           formatTick={monthLabel}
         />
-        {hasMeat && (
-          <MiniBarChart
-            title="Go‘sht"
-            unit="kg"
-            digits={1}
-            data={data((month) => month.meat_kg)}
-            windowLabel="12 oy"
-            formatLabel={monthLabel}
-            formatTick={monthLabel}
-          />
-        )}
         <MiniBarChart
           title="Yem sarfi"
           unit="kg"
