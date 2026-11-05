@@ -107,7 +107,8 @@ export default function HouseholdsPage() {
         title="Xonadonlar"
         description={data ? `Jami: ${formatNumber(data.count)}` : undefined}
         actions={
-          isAdmin && (
+          // Only an ordinary Administrator registers households (not the Super Admin).
+          isAdmin && !user.is_super_admin && (
             <Button icon={<Plus className="size-4" aria-hidden />} onClick={() => setCreating(true)}>
               Yangi xonadon
             </Button>
