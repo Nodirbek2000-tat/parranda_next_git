@@ -2,11 +2,12 @@
 
 import { useSearchParams } from "next/navigation";
 import { useId, useState } from "react";
-import { Eye, FileDown, FileSignature } from "lucide-react";
+import { ChevronDown, Eye, FileDown, FileSignature } from "lucide-react";
 import { api, apiDownload, toApiError, type FieldErrors } from "@/lib/api";
 import { useCurrentUser } from "@/lib/auth";
 import type { Act, ActKind, ActSnapshot, HouseholdRef } from "@/lib/builder-types";
-import { diffDays, formatDateTime, formatRange, ROLE_LABELS, todayIso } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { diffDays, formatDate, formatDateTime, formatRange, ROLE_LABELS, todayIso } from "@/lib/format";
 import { useApi, usePagedApi } from "@/lib/use-api";
 import type { Household, Role } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
@@ -113,6 +114,8 @@ function ActGenerator({
   const [previewQuery, setPreviewQuery] = useState<Record<string, string | number | undefined> | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // "Qo‘shimcha" (xodim, xonadon, davr) is collapsed by default; a URL prefill opens it.
+  const [moreOpen, setMoreOpen] = useState(Boolean(initialHousehold || initialKind));
 
   // ?household=<id> prefill (household detail → “Umumiy dalolatnoma”): load its code and name once.
   const prefillId = isAdmin || isStaff ? Number(initialHousehold) || null : null;
@@ -152,6 +155,7 @@ function ActGenerator({
       else if (diffDays(dateFrom, dateTo) + 1 > MAX_PERIOD_DAYS) found.date_to = "Davr 366 kundan oshmasligi kerak.";
     }
     setErrors(found);
+    if (found.date_from || found.date_to) setMoreOpen(true);
     return Object.keys(found).length === 0;
   };
 
@@ -174,16 +178,32 @@ function ActGenerator({
       const failure = toApiError(caught);
       setErrors(failure.fields);
       setCreateError(failure.message);
+      // Errors inside the collapsed "Qo‘shimcha" section must be visible.
+      if (failure.fields.user_id || failure.fields.household_id || failure.fields.date_from || failure.fields.date_to) {
+        setMoreOpen(true);
+      }
     } finally {
       setCreating(false);
     }
   };
 
   const ownerWithoutHousehold = isOwner && !user.household_id;
+  const showEmployee = isAdmin && kind === "role" && role !== "OWNER";
+  const moreTitle = `Qo‘shimcha (${[showEmployee && "xodim", !isOwner && "xonadon", "davr"].filter(Boolean).join(", ")})`;
+  const moreSummary = [
+    `Davr: ${formatDate(dateFrom)} — ${formatDate(dateTo)}`,
+    showEmployee ? (employee ? employee.full_name : "barcha xodimlar") : null,
+    isOwner ? "mening xonadonim" : household ? `${household.code} ${household.name}` : "barcha xonadonlar",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Card>
-      <CardHeader title="Dalolatnoma tuzish" description="Parametrlarni tanlang, avval ko‘rib chiqing, so‘ng PDF shakllantiring" />
+      <CardHeader
+        title="Dalolatnoma tuzish"
+        description="Odatda bir bosish kifoya: “Shakllantirish va yuklab olish”. Kerak bo‘lsa, avval ko‘rib chiqing"
+      />
       <CardBody className="flex flex-col gap-4">
         {ownerWithoutHousehold && <Alert tone="warning">Hisobingizga xonadon biriktirilmagan.</Alert>}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -221,61 +241,84 @@ function ActGenerator({
               </Select>
             </Field>
           )}
-          {isAdmin && kind === "role" && role !== "OWNER" && (
-            <Field label="Xodim" htmlFor={`${prefix}-user`} error={errors.user_id} hint="Bo‘sh qolsa — rol bo‘yicha barcha xodimlar">
-              <UserPicker
-                key={role}
-                id={`${prefix}-user`}
-                role={role}
-                value={employee}
-                invalid={Boolean(errors.user_id)}
-                onChange={(value) => change(() => setEmployee(value))}
-              />
-            </Field>
-          )}
-          <Field
-            label="Xonadon"
-            htmlFor={`${prefix}-household`}
-            error={errors.household_id}
-            hint={isOwner ? undefined : "Ixtiyoriy: bitta xonadon bo‘yicha"}
+        </div>
+
+        <div className="rounded-lg border border-line">
+          <button
+            type="button"
+            aria-expanded={moreOpen}
+            aria-controls={`${prefix}-more`}
+            onClick={() => setMoreOpen((open) => !open)}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            {isOwner ? (
-              <p
-                id={`${prefix}-household`}
-                className="flex h-10 items-center rounded-lg border border-line bg-subtle px-3 text-sm text-ink"
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="text-sm font-medium text-ink">{moreTitle}</span>
+              <span className="truncate text-[13px] tabular-nums text-muted">{moreSummary}</span>
+            </span>
+            <ChevronDown
+              className={cn("size-4 shrink-0 text-muted transition-transform", moreOpen && "rotate-180")}
+              aria-hidden
+            />
+          </button>
+          {moreOpen && (
+            <div id={`${prefix}-more`} className="grid gap-4 border-t border-line px-3 py-3 sm:grid-cols-2 lg:grid-cols-3">
+              {showEmployee && (
+                <Field label="Xodim" htmlFor={`${prefix}-user`} error={errors.user_id} hint="Bo‘sh qolsa — rol bo‘yicha barcha xodimlar">
+                  <UserPicker
+                    key={role}
+                    id={`${prefix}-user`}
+                    role={role}
+                    value={employee}
+                    invalid={Boolean(errors.user_id)}
+                    onChange={(value) => change(() => setEmployee(value))}
+                  />
+                </Field>
+              )}
+              <Field
+                label="Xonadon"
+                htmlFor={`${prefix}-household`}
+                error={errors.household_id}
+                hint={isOwner ? undefined : "Ixtiyoriy: bitta xonadon bo‘yicha"}
               >
-                Mening xonadonim
-              </p>
-            ) : (
-              <HouseholdPicker
-                id={`${prefix}-household`}
-                value={household}
-                invalid={Boolean(errors.household_id)}
-                onChange={(value) => change(() => setHousehold(value))}
-              />
-            )}
-          </Field>
-          <Field label="Davr boshi" htmlFor={`${prefix}-from`} error={errors.date_from}>
-            <Input
-              id={`${prefix}-from`}
-              type="date"
-              value={dateFrom}
-              max={dateTo || todayIso()}
-              invalid={Boolean(errors.date_from)}
-              onChange={(event) => change(() => setDateFrom(event.target.value))}
-            />
-          </Field>
-          <Field label="Davr oxiri" htmlFor={`${prefix}-to`} error={errors.date_to}>
-            <Input
-              id={`${prefix}-to`}
-              type="date"
-              value={dateTo}
-              min={dateFrom || undefined}
-              max={todayIso()}
-              invalid={Boolean(errors.date_to)}
-              onChange={(event) => change(() => setDateTo(event.target.value))}
-            />
-          </Field>
+                {isOwner ? (
+                  <p
+                    id={`${prefix}-household`}
+                    className="flex h-10 items-center rounded-lg border border-line bg-subtle px-3 text-sm text-ink"
+                  >
+                    Mening xonadonim
+                  </p>
+                ) : (
+                  <HouseholdPicker
+                    id={`${prefix}-household`}
+                    value={household}
+                    invalid={Boolean(errors.household_id)}
+                    onChange={(value) => change(() => setHousehold(value))}
+                  />
+                )}
+              </Field>
+              <Field label="Davr boshi" htmlFor={`${prefix}-from`} error={errors.date_from}>
+                <Input
+                  id={`${prefix}-from`}
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || todayIso()}
+                  invalid={Boolean(errors.date_from)}
+                  onChange={(event) => change(() => setDateFrom(event.target.value))}
+                />
+              </Field>
+              <Field label="Davr oxiri" htmlFor={`${prefix}-to`} error={errors.date_to}>
+                <Input
+                  id={`${prefix}-to`}
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  max={todayIso()}
+                  invalid={Boolean(errors.date_to)}
+                  onChange={(event) => change(() => setDateTo(event.target.value))}
+                />
+              </Field>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">

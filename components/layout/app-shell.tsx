@@ -7,7 +7,7 @@ import { Ellipsis, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/cn";
-import { homeFor, isActivePath, navItemsFor, primaryItemsFor, type NavItem } from "@/lib/nav";
+import { homeFor, isActivePath, navGroups, navItemsFor, primaryItemsFor, type NavItem } from "@/lib/nav";
 import { session } from "@/lib/session";
 import { useCompanySettings } from "@/lib/use-settings";
 import { IconButton } from "@/components/ui/button";
@@ -52,6 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (!user || redirect) return <ShellSkeleton />;
 
   const items = navItemsFor(user);
+  const groups = navGroups(items);
   const handleSignOut = async (all = false) => {
     await serverLogout(all);
     setSignedOut(true);
@@ -75,12 +76,26 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
         <nav aria-label="Asosiy menyu" className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
-            {items.map((item) => (
+            {groups.work.map((item) => (
               <li key={item.href}>
                 <SidebarLink item={item} active={isActivePath(pathname, item.href, items)} />
               </li>
             ))}
           </ul>
+          {groups.config.length > 0 && (
+            <>
+              <h2 id="nav-config-heading" className="mt-6 px-3 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted/80">
+                Sozlash
+              </h2>
+              <ul aria-labelledby="nav-config-heading" className="flex flex-col gap-1">
+                {groups.config.map((item) => (
+                  <li key={item.href}>
+                    <SidebarLink item={item} active={isActivePath(pathname, item.href, items)} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </nav>
         <p className="border-t border-line px-5 py-4 text-xs leading-relaxed text-muted">
           © NNP

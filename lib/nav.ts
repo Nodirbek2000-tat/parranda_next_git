@@ -36,6 +36,8 @@ export interface NavItem {
   primaryFor?: readonly Role[];
   /** Shown / allowed only for the Super Admin (`user.is_super_admin`). */
   superOnly?: boolean;
+  /** Configuration item: the desktop sidebar lists it under the "Sozlash" heading at the bottom. */
+  config?: boolean;
 }
 
 /** The minimal user shape navigation needs (the full `User` fits). */
@@ -69,14 +71,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/vet/requests", label: "Murojaatlar", shortLabel: "Murojaatlar", icon: MessageSquareHeart, roles: [A, V], primaryFor: [V] },
   { href: "/reports", label: "Hisobotlar", shortLabel: "Hisobotlar", icon: FileSpreadsheet, roles: ALL },
   { href: "/tasks", label: "Vazifalar", shortLabel: "Vazifalar", icon: ListTodo, roles: ALL },
-  { href: "/processes", label: "Jarayonlar", shortLabel: "Jarayonlar", icon: Workflow, roles: [A] },
+  { href: "/processes", label: "Jarayonlar", shortLabel: "Jarayonlar", icon: Workflow, roles: [A], config: true },
   { href: "/acts", label: "Dalolatnomalar", shortLabel: "Dalolatnoma", icon: FileSignature, roles: ALL },
   { href: "/map", label: "Xarita", shortLabel: "Xarita", icon: Map, roles: [A, W, V], primaryFor: [V] },
   { href: "/users", label: "Xodimlar", shortLabel: "Xodimlar", icon: Users, roles: [A] },
-  { href: "/notifications", label: "Bildirishnomalar", shortLabel: "Xabarlar", icon: BellRing, roles: [A] },
-  { href: "/audit", label: "Audit jurnali", shortLabel: "Audit", icon: ScrollText, roles: [A] },
-  { href: "/builder", label: "Konstruktor", shortLabel: "Konstruktor", icon: Blocks, roles: [A], superOnly: true },
-  { href: "/settings", label: "Sozlamalar", shortLabel: "Sozlamalar", icon: Settings, roles: [A], superOnly: true },
+  { href: "/notifications", label: "Bildirishnomalar", shortLabel: "Xabarlar", icon: BellRing, roles: [A], config: true },
+  { href: "/audit", label: "Audit jurnali", shortLabel: "Audit", icon: ScrollText, roles: [A], config: true },
+  { href: "/builder", label: "Konstruktor", shortLabel: "Konstruktor", icon: Blocks, roles: [A], superOnly: true, config: true },
+  { href: "/settings", label: "Sozlamalar", shortLabel: "Sozlamalar", icon: Settings, roles: [A], superOnly: true, config: true },
   { href: "/my", label: "Mening xonadonim", shortLabel: "Xonadonim", icon: House, roles: [O], primaryFor: [O] },
   { href: "/my/orders", label: "Buyurtmalarim", shortLabel: "Buyurtma", icon: ShoppingCart, roles: [O], primaryFor: [O] },
   { href: "/my/deliveries", label: "Yetkazib berishlar", shortLabel: "Yetkazish", icon: Truck, roles: [O], primaryFor: [O] },
@@ -145,6 +147,21 @@ function profileAllows(user: NavUser, href: string): boolean {
   if (!permissions || user.is_super_admin) return true;
   const key = navModule(href);
   return key === null || Boolean(permissions[key]?.includes("view"));
+}
+
+/** Order of the "Sozlash" group in the sidebar (NAV_ITEMS order — used by the phone menu — is unchanged). */
+const CONFIG_ORDER: readonly string[] = ["/builder", "/processes", "/notifications", "/audit", "/settings"];
+
+/** Sidebar groups: daily work on top (NAV_ITEMS order), configuration items ("Sozlash") below. */
+export function navGroups(items: readonly NavItem[]): { work: NavItem[]; config: NavItem[] } {
+  const rank = (item: NavItem) => {
+    const index = CONFIG_ORDER.indexOf(item.href);
+    return index === -1 ? CONFIG_ORDER.length : index;
+  };
+  return {
+    work: items.filter((item) => !item.config),
+    config: items.filter((item) => item.config).sort((a, b) => rank(a) - rank(b)),
+  };
 }
 
 export function navItemsFor(user: NavUser): NavItem[] {

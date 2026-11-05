@@ -36,8 +36,9 @@ export function editableSource(blueprint: Blueprint | null): { name: string; des
 
 /**
  * Common frame of every blueprint editor: header with status and lifecycle shortcuts, name + description,
- * the kind-specific body, comment and save (POST new / PATCH existing — an active blueprint parks the change
- * as `pending` until "O‘zgarishni tasdiqlash").
+ * the kind-specific body, comment and one-click save: «Saqlash» creates with `activate: true` / patches with
+ * `apply: true`, so the change works immediately (history is kept). "Qoralama sifatida saqlash" keeps the old
+ * create-as-draft flow; drafts/test items are still activated with "Faollashtirish".
  */
 export function EditorShell({
   kind,
@@ -80,7 +81,8 @@ export function EditorShell({
 
   const nameError = serverErrors.name ?? (submitted && !name.trim() ? "Nomini kiriting" : undefined);
 
-  const save = async () => {
+  /** `asDraft`: create without activating (the old flow). Otherwise the change takes effect immediately. */
+  const save = async (asDraft = false) => {
     setSubmitted(true);
     if (!name.trim() || clientErrors.length > 0) return;
     setSaving(true);
@@ -93,18 +95,22 @@ export function EditorShell({
     };
     try {
       if (base) {
-        const saved = await api.patch<Blueprint>(`/builder/blueprints/${base.id}`, body);
+        const saved = await api.patch<Blueprint>(`/builder/blueprints/${base.id}`, { ...body, apply: true });
         setBaseline(snapshot);
         setComment("");
         setSubmitted(false);
         toast.success(
-          saved.status === "active" || saved.pending
+          saved.pending
             ? "O‘zgarish saqlandi. U “O‘zgarishni tasdiqlash” bosilgandan keyin kuchga kiradi."
-            : "Saqlandi",
+            : saved.status === "active"
+              ? "Saqlandi va darhol kuchga kirdi"
+              : "Saqlandi",
         );
       } else {
-        const created = await api.post<Blueprint>("/builder/blueprints", { kind, ...body });
-        toast.success(`“${created.name}” qoralama sifatida yaratildi`);
+        const created = await api.post<Blueprint>("/builder/blueprints", { kind, ...body, ...(asDraft ? {} : { activate: true }) });
+        toast.success(
+          created.status === "active" ? `“${created.name}” saqlandi va ishlay boshladi` : `“${created.name}” qoralama sifatida yaratildi`,
+        );
         setBaseline(snapshot);
         onCreated(created.id);
       }
@@ -149,7 +155,7 @@ export function EditorShell({
               <p className="text-[13px] text-muted">
                 {base
                   ? `${labels.one} · versiya ${base.version} · yangilangan ${formatDateTime(base.updated_at)}`
-                  : `${labels.one} qoralama sifatida saqlanadi`}
+                  : `${labels.one} saqlangach darhol ishlay boshlaydi`}
               </p>
             </div>
           </div>
@@ -166,20 +172,22 @@ export function EditorShell({
             </div>
           )}
         </div>
-        {(isActive || base?.status === "test" || readOnly) && (
+        {(isActive || base?.status === "draft" || base?.status === "test" || readOnly) && (
           <div className="flex flex-col gap-2 border-t border-line px-4 py-3 sm:px-6">
             {isActive && !base?.pending && (
-              <Alert tone="warning">
-                Bu {labels.one.toLowerCase()} faol. Saqlangan o‘zgarishlar darhol emas, “O‘zgarishni tasdiqlash” bosilgandan
-                keyin kuchga kiradi.
+              <Alert tone="info">
+                Bu {labels.one.toLowerCase()} faol. «Saqlash» bosilganda o‘zgarish darhol kuchga kiradi.
               </Alert>
             )}
             {isActive && base?.pending && (
               <Alert tone="warning">
                 Tasdiq kutayotgan o‘zgarish tahrirlanmoqda
                 {base.pending_by_name ? ` (${base.pending_by_name}${base.pending_at ? `, ${formatDateTime(base.pending_at)}` : ""})` : ""}.
-                Faol versiya tasdiqlanmaguncha o‘zgarmaydi.
+                «Saqlash» bosilsa, u darhol kuchga kiradi; yoki yuqoridagi “O‘zgarishni tasdiqlash”dan foydalaning.
               </Alert>
+            )}
+            {base?.status === "draft" && (
+              <Alert tone="info">Bu qoralama: hali ishlatilmaydi. Tayyor bo‘lgach, yuqoridagi “Faollashtirish”ni bosing.</Alert>
             )}
             {base?.status === "test" && (
               <Alert tone="info">Sinov rejimi: faqat Super Admin ko‘radi va ishlata oladi; yaratilgan yozuvlar “sinov” belgili bo‘ladi.</Alert>
@@ -259,8 +267,18 @@ export function EditorShell({
               <Button variant="secondary" onClick={back} disabled={saving}>
                 Orqaga
               </Button>
-              <Button icon={<Save className="size-4" aria-hidden />} loading={saving} onClick={save} disabled={base !== null && !dirty}>
-                {isActive ? "O‘zgarishni saqlash" : "Saqlash"}
+              {!base && (
+                <Button variant="ghost" onClick={() => void save(true)} disabled={saving}>
+                  Qoralama sifatida saqlash
+                </Button>
+              )}
+              <Button
+                icon={<Save className="size-4" aria-hidden />}
+                loading={saving}
+                onClick={() => void save()}
+                disabled={base !== null && !dirty}
+              >
+                Saqlash
               </Button>
             </div>
           </CardBody>

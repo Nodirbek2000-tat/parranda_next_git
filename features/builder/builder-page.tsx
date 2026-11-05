@@ -23,29 +23,41 @@ import { useBuilderMeta } from "./shared";
 import { TaskEditor } from "./task-editor";
 import { UserAccessTab } from "./user-access";
 
-type Tab = "roles" | "forms" | "tasks" | "processes" | "documents" | "notifications" | "norms" | "access";
+type Tab = "forms" | "tasks" | "processes" | "documents" | "settings";
+/** Sub-sections of "Sozlamalar" (formerly separate tabs; old `?tab=roles|access|notifications|norms` links still work). */
+type Section = "roles" | "access" | "notifications" | "norms";
 
 const TABS = [
-  { key: "roles", label: "Rollar" },
   { key: "forms", label: "Formalar" },
   { key: "tasks", label: "Vazifalar" },
   { key: "processes", label: "Jarayonlar" },
   { key: "documents", label: "Hujjatlar" },
+  { key: "settings", label: "Sozlamalar" },
+] as const;
+
+const SECTIONS = [
+  { key: "roles", label: "Rollar" },
+  { key: "access", label: "Foydalanuvchi vakolatlari" },
   { key: "notifications", label: "Bildirishnomalar" },
   { key: "norms", label: "Me’yorlar" },
-  { key: "access", label: "Foydalanuvchi vakolatlari" },
 ] as const;
 
 const TAB_KINDS: Partial<Record<Tab, BlueprintKind>> = {
-  roles: "role",
   forms: "form",
   tasks: "task",
   processes: "process",
   documents: "document",
 };
 
-function parseTab(value: string | null): Tab {
-  return TABS.some((tab) => tab.key === value) ? (value as Tab) : "forms";
+function isSection(value: string | null): value is Section {
+  return SECTIONS.some((section) => section.key === value);
+}
+
+/** `?tab=` (+ `?section=` for Sozlamalar); a legacy `?tab=roles` etc. maps to Sozlamalar + that section. */
+function parseView(tabValue: string | null, sectionValue: string | null): { tab: Tab; section: Section } {
+  if (isSection(tabValue)) return { tab: "settings", section: tabValue };
+  const tab = TABS.some((item) => item.key === tabValue) ? (tabValue as Tab) : "forms";
+  return { tab, section: isSection(sectionValue) ? sectionValue : "roles" };
 }
 
 const SKELETON = (
@@ -59,17 +71,21 @@ export function BuilderPage() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const tab = parseTab(params.get("tab"));
+  const { tab, section } = parseView(params.get("tab"), params.get("section"));
   const edit = params.get("edit");
-  const kind = TAB_KINDS[tab];
+  const settings = tab === "settings";
+  const kind = settings ? (section === "roles" ? "role" : undefined) : TAB_KINDS[tab];
   const meta = useBuilderMeta();
 
-  const navigate = (next: { tab?: Tab; edit?: string | null }) => {
+  const navigate = (next: { tab?: Tab; section?: Section; edit?: string | null }) => {
     const query = new URLSearchParams(params.toString());
-    if (next.tab !== undefined) {
-      query.set("tab", next.tab);
-      query.delete("edit");
-    }
+    const nextTab = next.tab ?? tab;
+    const nextSection = next.section ?? (next.tab !== undefined ? "roles" : section);
+    // Always write the normalized form (legacy `?tab=roles` becomes `?tab=settings&section=roles`).
+    query.set("tab", nextTab);
+    if (nextTab === "settings") query.set("section", nextSection);
+    else query.delete("section");
+    if (next.tab !== undefined || next.section !== undefined) query.delete("edit");
     if (next.edit !== undefined) {
       if (next.edit === null) query.delete("edit");
       else query.set("edit", next.edit);
@@ -83,13 +99,22 @@ export function BuilderPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Konstruktor"
-        description="Rollar, formalar, vazifalar, jarayonlar va hujjatlarni dasturlashsiz sozlash"
+        description="Formalar, vazifalar, jarayonlar, hujjatlar va rollarni dasturlashsiz sozlash"
         toolbar={<Tabs label="Konstruktor bo‘limlari" items={TABS} value={tab} onChange={(next) => navigate({ tab: next })} />}
       />
+      {settings && !editing && (
+        <Tabs
+          label="Sozlamalar bo‘limlari"
+          variant="subtle"
+          items={SECTIONS}
+          value={section}
+          onChange={(next) => navigate({ section: next })}
+        />
+      )}
       {kind && !editing && (
         <Alert tone="info">
-          Yangi yozuv qoralama sifatida saqlanadi. “Sinov” rejimidagi yozuvlar faqat Super Admin uchun ko‘rinadi.
-          Faol yozuvga kiritilgan o‘zgarishlar esa darhol emas, “O‘zgarishni tasdiqlash” bosilgandan keyin kuchga kiradi.
+          «Saqlash» bosilganda o‘zgarish darhol kuchga kiradi. Har bir o‘zgarish tarixda saqlanadi — «Versiyalar» orqali
+          qaytarish mumkin.
         </Alert>
       )}
 
@@ -112,9 +137,9 @@ export function BuilderPage() {
           onCreated={(id) => navigate({ edit: String(id) })}
         />
       )}
-      {tab === "notifications" && <NotificationsTab />}
-      {tab === "norms" && <NormsTab />}
-      {tab === "access" && <UserAccessTab meta={meta.data} />}
+      {settings && section === "notifications" && <NotificationsTab />}
+      {settings && section === "norms" && <NormsTab />}
+      {settings && section === "access" && <UserAccessTab meta={meta.data} />}
     </div>
   );
 }

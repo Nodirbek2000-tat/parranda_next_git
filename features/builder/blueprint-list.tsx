@@ -137,7 +137,7 @@ export function BlueprintList({
         <EmptyState
           icon={Blocks}
           title={filtered ? "Hech narsa topilmadi" : labels.empty}
-          description={filtered ? undefined : "Yangi yarating: u qoralama sifatida saqlanadi, keyin sinab ko‘rib faollashtirasiz."}
+          description={filtered ? undefined : "Yangi yarating: «Saqlash» bosilgach u darhol ishlay boshlaydi."}
         />
       ) : (
         <>
