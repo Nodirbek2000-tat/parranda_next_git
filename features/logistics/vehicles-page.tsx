@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Car, PencilLine, Plus, Power, PowerOff } from "lucide-react";
+import { Car, PencilLine, Plus, Power, PowerOff, Trash2 } from "lucide-react";
 import { api, type FieldErrors } from "@/lib/api";
 import { useCurrentUser } from "@/lib/auth";
 import { formatNumber } from "@/lib/format";
@@ -25,6 +25,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
+import { useFleetDelete } from "./use-fleet-delete";
 
 const PAGE_SIZE = 50;
 const PLATE_RE = /^[0-9A-Z ]{5,15}$/;
@@ -77,6 +78,8 @@ export function VehiclesPage() {
   const [editing, setEditing] = useState<Vehicle | "new" | null>(null);
   const list = usePagedApi<Vehicle>("/logistics/vehicles", { search: filters.debounced, is_active: activeQuery(filters.active) }, PAGE_SIZE);
   const data = list.data;
+
+  const { deleteVehicle } = useFleetDelete();
 
   const toggle = (vehicle: Vehicle) =>
     void confirm({
@@ -190,6 +193,13 @@ export function VehiclesPage() {
                           onClick={() => toggle(vehicle)}
                         >
                           {vehicle.is_active ? <PowerOff className="size-4" aria-hidden /> : <Power className="size-4" aria-hidden />}
+                        </IconButton>
+                        <IconButton
+                          label={`${vehicle.plate_number}: o‘chirish`}
+                          tone="quiet-danger"
+                          onClick={() => deleteVehicle(vehicle)}
+                        >
+                          <Trash2 className="size-4" aria-hidden />
                         </IconButton>
                       </>
                     )

@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { CompanySettingsForm } from "./company-settings-form";
+import { DangerZone } from "./danger-zone";
 import { NotificationSettingsTable } from "./notification-settings";
 import { RolesMatrix } from "./roles-matrix";
 
@@ -60,6 +61,7 @@ export function SettingsPage() {
           {(data) => <CompanySettingsForm key={data.updated_at} settings={data} />}
         </Loadable>
       )}
+      {tab === "company" && <DangerZone />}
       {tab === "notifications" && (
         <Loadable resource={notificationSettings} skeleton={SKELETON}>
           {(rows) => <NotificationSettingsTable rows={rows} />}

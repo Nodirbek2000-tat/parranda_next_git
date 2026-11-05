@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Bird,
   ClipboardList,
@@ -12,6 +12,7 @@ import {
   Package,
   Pencil,
   Power,
+  Trash2,
   Unlink,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -130,6 +131,7 @@ export function HouseholdDetail({ id }: { id: string }) {
   const showVet = isAdmin || isVet;
   const confirm = useConfirm();
   const toast = useToast();
+  const router = useRouter();
   const [dialog, setDialog] = useState<Dialog>(null);
 
   const [tab, setTab] = useDetailTab();
@@ -181,6 +183,48 @@ export function HouseholdDetail({ id }: { id: string }) {
     });
   };
 
+  const deleteHousehold = () => {
+    void (async () => {
+      // 1-so‘rov: faqat tasdiq (hech narsa o‘chmaydi).
+      const first = await confirm({
+        title: "Xonadonni o‘chirish",
+        confirmLabel: "Ha, o‘chirish",
+        tone: "danger",
+        message: (
+          <div className="flex flex-col gap-2">
+            <p>
+              <strong>{data.name}</strong> ({data.code}) xonadonini o‘chirmoqchimisiz?
+            </p>
+            <p className="text-[13px] text-muted">
+              Xonadon barcha ro‘yxat, qidiruv va statistikadan yo‘qoladi, egasining hisobi ham o‘chiriladi. Parranda
+              harakatlari, kunlik hisobotlar, buyurtmalar va topshiriqlar tarixi saqlanib qoladi.
+            </p>
+          </div>
+        ),
+        onConfirm: async () => {},
+      });
+      if (!first) return;
+      // 2-so‘rov: haqiqiy o‘chirish.
+      await confirm({
+        title: "Rostdan ham o‘chirasizmi?",
+        confirmLabel: "Ha, butunlay o‘chirish",
+        tone: "danger",
+        message: (
+          <p>
+            <strong>{data.name}</strong> o‘chiriladi, egasi <strong>{data.owner.full_name}</strong> esa tizimga ham,
+            botga ham boshqa kira olmaydi. Bu amalni qaytarib bo‘lmaydi.
+          </p>
+        ),
+        onConfirm: async () => {
+          // silent: this page must not refetch (404) before we leave it; the list loads fresh.
+          await api.delete(`/households/${data.id}`, { silent: true });
+          toast.success("Xonadon o‘chirildi");
+          router.replace("/households");
+        },
+      });
+    })();
+  };
+
   const owner = data.owner;
 
   return (
@@ -220,6 +264,9 @@ export function HouseholdDetail({ id }: { id: string }) {
                 </Button>
                 <Button variant="secondary" icon={<Power className="size-4" aria-hidden />} onClick={toggleActive}>
                   {data.is_active ? "Nofaol qilish" : "Faollashtirish"}
+                </Button>
+                <Button variant="danger" icon={<Trash2 className="size-4" aria-hidden />} onClick={deleteHousehold}>
+                  O‘chirish
                 </Button>
                 <LinkButton
                   href={`/acts?household=${data.id}&kind=general`}

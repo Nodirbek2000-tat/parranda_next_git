@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IdCard, PencilLine, Plus, Power, PowerOff } from "lucide-react";
+import { IdCard, PencilLine, Plus, Power, PowerOff, Trash2 } from "lucide-react";
 import { api, type FieldErrors } from "@/lib/api";
 import { useCurrentUser } from "@/lib/auth";
 import { formatNumber, formatPhone } from "@/lib/format";
@@ -25,6 +25,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
+import { useFleetDelete } from "./use-fleet-delete";
 import { ACTIVE_TABS, activeQuery, useFleetFilters } from "./vehicles-page";
 
 const PAGE_SIZE = 50;
@@ -41,6 +42,7 @@ export function DriversPage() {
   const confirm = useConfirm();
   const toast = useToast();
   const filters = useFleetFilters();
+  const { deleteDriver } = useFleetDelete();
   const [editing, setEditing] = useState<Driver | "new" | null>(null);
   const list = usePagedApi<Driver>("/logistics/drivers", { search: filters.debounced, is_active: activeQuery(filters.active) }, PAGE_SIZE);
   const data = list.data;
@@ -161,6 +163,9 @@ export function DriversPage() {
                         onClick={() => toggle(driver)}
                       >
                         {driver.is_active ? <PowerOff className="size-4" aria-hidden /> : <Power className="size-4" aria-hidden />}
+                      </IconButton>
+                      <IconButton label={`${driver.full_name}: o‘chirish`} tone="quiet-danger" onClick={() => deleteDriver(driver)}>
+                        <Trash2 className="size-4" aria-hidden />
                       </IconButton>
                     </>
                   )}

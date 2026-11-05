@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { ArrowDownToLine, ArrowUpFromLine, Package, Pencil, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowDownToLine, ArrowUpFromLine, Package, Pencil, Trash2, Users } from "lucide-react";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { CHART_COLORS } from "@/lib/stats";
 import { useApi } from "@/lib/use-api";
@@ -25,6 +26,7 @@ import { ProductModal } from "./product-modal";
 import { StockModal } from "./stock-modal";
 import { ProductLotsCard } from "./lots";
 import { transactionColumns } from "./transaction-columns";
+import { useDeleteProduct } from "./use-delete-product";
 
 type Dialog = { kind: "edit" } | { kind: "stock"; type: StockType } | null;
 
@@ -41,6 +43,8 @@ function ProductDetailInner({ id }: { id: string }) {
   const period = usePeriodQuery();
   const stats = useApi<ProductStats>(`/products/${id}/stats`, { ...period });
   const [dialog, setDialog] = useState<Dialog>(null);
+  const router = useRouter();
+  const deleteProduct = useDeleteProduct(() => router.replace("/warehouse"));
   const data = stats.data;
 
   if (!data && stats.error?.status === 404) {
@@ -108,6 +112,13 @@ function ProductDetailInner({ id }: { id: string }) {
                 onClick={() => setDialog({ kind: "edit" })}
               >
                 Tahrirlash
+              </Button>
+              <Button
+                variant="danger"
+                icon={<Trash2 className="size-4" aria-hidden />}
+                onClick={() => deleteProduct(product)}
+              >
+                O‘chirish
               </Button>
             </>
           )

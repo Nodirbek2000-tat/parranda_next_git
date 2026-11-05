@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownToLine, ArrowUpFromLine, ClipboardCheck, Package, PackagePlus, Pencil, Power } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, ClipboardCheck, Package, PackagePlus, Pencil, Power, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { CATEGORY_LABELS, entries, formatNumber, STOCK_TYPE_LABELS } from "@/lib/format";
 import { useApi, useDebounced, usePagedApi } from "@/lib/use-api";
@@ -25,6 +25,7 @@ import { StockModal } from "@/features/stock/stock-modal";
 import { CenterBirdsCard } from "@/features/stock/center-birds-card";
 import { ExpiringLotsCard, ExpiryBadge, useSoonDays } from "@/features/stock/lots";
 import { transactionColumns } from "@/features/stock/transaction-columns";
+import { useDeleteProduct } from "@/features/stock/use-delete-product";
 import { coverText, coverView, WarehouseHeaderStats } from "@/features/stats/warehouse-stats";
 
 const PAGE_SIZE = 50;
@@ -196,6 +197,8 @@ export default function WarehousePage() {
     });
   };
 
+  const deleteProduct = useDeleteProduct();
+
   const close = () => setDialog(null);
 
   return (
@@ -325,6 +328,9 @@ export default function WarehousePage() {
                     onClick={() => toggleActive(row)}
                   >
                     <Power className="size-4" aria-hidden />
+                  </IconButton>
+                  <IconButton label={`${row.name}: o‘chirish`} tone="quiet-danger" onClick={() => deleteProduct(row)}>
+                    <Trash2 className="size-4" aria-hidden />
                   </IconButton>
                 </>
               )}
