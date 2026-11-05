@@ -361,6 +361,9 @@ function FieldCard({
   const setValidation = (patch: Partial<FieldValidation>) => onUpdate({ validation: { ...v, ...patch } });
   const numberOrNull = (value: string) => (value.trim() === "" ? null : Number(value));
   const typeLabel = optionLabel(meta.field_types, field.type);
+  // Rarely needed settings stay folded; they open by themselves when one of them has an error.
+  const [advanced, setAdvanced] = useState(false);
+  const showAdvanced = advanced || Boolean(shown(errors.key) || shown(errors.validation));
 
   return (
     <div className={cn("rounded-lg border bg-surface", hasError ? "border-danger/50" : "border-line")}>
@@ -382,7 +385,6 @@ function FieldCard({
               <Badge>{typeLabel}</Badge>
               {hasError && <Badge tone="danger">Xato</Badge>}
             </span>
-            <span className="block truncate font-mono text-xs text-muted">{field.key || "—"}</span>
           </span>
           <ChevronDown className={cn("size-4 shrink-0 text-muted transition-transform", field.open && "rotate-180")} aria-hidden />
         </button>
@@ -415,26 +417,6 @@ function FieldCard({
               autoComplete="off"
             />
           </Field>
-          <Field
-            label="Kalit"
-            htmlFor={`${id}-key`}
-            required
-            error={shown(errors.key)}
-            hint={field.autoKey ? "Nomdan avtomatik" : "Faol formada kalitni o‘zgartirmang: eski javoblar shu kalit bilan saqlangan"}
-          >
-            <Input
-              id={`${id}-key`}
-              value={field.key}
-              disabled={readOnly}
-              invalid={Boolean(shown(errors.key))}
-              onChange={(event) => onUpdate({ key: event.target.value.toLowerCase(), autoKey: false })}
-              className="font-mono"
-              autoCapitalize="none"
-              autoComplete="off"
-              spellCheck={false}
-              maxLength={40}
-            />
-          </Field>
           <Field label="Turi" htmlFor={`${id}-type`} required>
             <Select
               id={`${id}-type`}
@@ -460,16 +442,6 @@ function FieldCard({
               Majburiy maydon
             </label>
           </div>
-          <Field label="Yordamchi matn" htmlFor={`${id}-help`} className="sm:col-span-2">
-            <Input
-              id={`${id}-help`}
-              value={field.help ?? ""}
-              disabled={readOnly}
-              onChange={(event) => onUpdate({ help: event.target.value })}
-              placeholder="To‘ldiruvchiga ko‘rinadigan izoh (ixtiyoriy)"
-              autoComplete="off"
-            />
-          </Field>
 
           {CHOICE_TYPES.includes(field.type) && (
             <OptionsEditor
@@ -481,6 +453,64 @@ function FieldCard({
             />
           )}
 
+          {field.type === "computed" && (
+            <FormulaInput
+              id={`${id}-formula`}
+              field={field}
+              fields={fields}
+              readOnly={readOnly}
+              error={shown(errors.formula)}
+              onChange={(formula) => onUpdate({ formula })}
+            />
+          )}
+
+          <div className="sm:col-span-2">
+            <button
+              type="button"
+              onClick={() => setAdvanced(!showAdvanced)}
+              aria-expanded={showAdvanced}
+              aria-controls={`${id}-advanced`}
+              className="inline-flex items-center gap-1.5 rounded text-[13px] font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              <ChevronDown className={cn("size-4 transition-transform", showAdvanced && "rotate-180")} aria-hidden />
+              {showAdvanced ? "Qo‘shimcha sozlamalarni yashirish" : "Qo‘shimcha sozlamalar"}
+            </button>
+            {!showAdvanced && (
+              <p className="mt-1 text-xs text-muted">Kalit, izoh, cheklovlar va kim ko‘rishi — odatda o‘zgartirish shart emas.</p>
+            )}
+          </div>
+          {showAdvanced && (
+            <div id={`${id}-advanced`} className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+          <Field
+            label="Kalit"
+            htmlFor={`${id}-key`}
+            required
+            error={shown(errors.key)}
+            hint={field.autoKey ? "Nomdan avtomatik" : "Faol formada kalitni o‘zgartirmang: eski javoblar shu kalit bilan saqlangan"}
+          >
+            <Input
+              id={`${id}-key`}
+              value={field.key}
+              disabled={readOnly}
+              invalid={Boolean(shown(errors.key))}
+              onChange={(event) => onUpdate({ key: event.target.value.toLowerCase(), autoKey: false })}
+              className="font-mono"
+              autoCapitalize="none"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={40}
+            />
+          </Field>
+          <Field label="Yordamchi matn" htmlFor={`${id}-help`} className="sm:col-span-2">
+            <Input
+              id={`${id}-help`}
+              value={field.help ?? ""}
+              disabled={readOnly}
+              onChange={(event) => onUpdate({ help: event.target.value })}
+              placeholder="To‘ldiruvchiga ko‘rinadigan izoh (ixtiyoriy)"
+              autoComplete="off"
+            />
+          </Field>
           {field.type === "number" && (
             <>
               <Field label="Minimal qiymat" htmlFor={`${id}-min`} error={shown(errors.validation)}>
@@ -507,7 +537,6 @@ function FieldCard({
               </Field>
             </>
           )}
-
           {field.type === "text" && (
             <>
               <Field label="Minimal uzunlik" htmlFor={`${id}-minlen`} error={shown(errors.validation)}>
@@ -551,18 +580,6 @@ function FieldCard({
               </Field>
             </>
           )}
-
-          {field.type === "computed" && (
-            <FormulaInput
-              id={`${id}-formula`}
-              field={field}
-              fields={fields}
-              readOnly={readOnly}
-              error={shown(errors.formula)}
-              onChange={(formula) => onUpdate({ formula })}
-            />
-          )}
-
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <span className="text-[13px] font-medium text-ink">Kim ko‘radi</span>
             <RoleRefChips
@@ -585,6 +602,8 @@ function FieldCard({
               emptyHint={field.type === "computed" ? "Hisoblanadigan maydonni server to‘ldiradi" : "Formani to‘ldiruvchilarning hammasi"}
             />
           </div>
+            </div>
+          )}
         </div>
       )}
     </div>
