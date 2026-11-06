@@ -63,36 +63,38 @@ function OwnerCabinet({ detail }: { detail: CaseDetail }) {
   const requests = toRequests(Array.isArray(detail.requests) ? detail.requests : reqRes.data);
   const visits = toVisits(Array.isArray(detail.visits) ? detail.visits : visRes.data);
   const delivered = requests.filter((r) => r.can.confirm || r.status === "DELIVERED");
+  // The buttons are always shown so the owner knows the option exists; they work only in the growing period.
+  const closedHint = canRequest
+    ? null
+    : detail.status === "REJECTED"
+      ? "Xonadon rad etilgan — so‘rov yuborib bo‘lmaydi."
+      : detail.status === "DONE" || (detail.current_stage ?? 0) > 10
+        ? "Parvarish davri yakunlangan — so‘rov yuborib bo‘lmaydi."
+        : "Jo‘jalar yetkazilib, parvarish boshlangach bu tugmalar ochiladi.";
+  const askButton = (kind: RequestKind, icon: string, label: string, tone: string) => (
+    <button
+      type="button"
+      onClick={() => setAsking(kind)}
+      disabled={!canRequest}
+      className={`flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-4 text-center text-[15px] font-semibold shadow-card active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted disabled:shadow-none disabled:active:scale-100 ${tone}`}
+    >
+      <span className={`text-3xl ${canRequest ? "" : "opacity-50 grayscale"}`} aria-hidden>
+        {icon}
+      </span>
+      {label}
+    </button>
+  );
 
   return (
     <div className="flex flex-col gap-4">
-      {(growing || canRequest) && (
+      {(
         <Card className="flex flex-col gap-4">
           {growing && <GrowingProgress growing={growing} big />}
-          {canRequest && (
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setAsking("FEED")}
-                className="flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-2xl bg-primary px-3 py-4 text-center text-[15px] font-semibold text-white shadow-card active:scale-[0.98]"
-              >
-                <span className="text-3xl" aria-hidden>
-                  🌾
-                </span>
-                Yem so‘rash
-              </button>
-              <button
-                type="button"
-                onClick={() => setAsking("VET")}
-                className="flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-2xl bg-accent px-3 py-4 text-center text-[15px] font-semibold text-white shadow-card active:scale-[0.98]"
-              >
-                <span className="text-3xl" aria-hidden>
-                  🩺
-                </span>
-                Veterinar chaqirish
-              </button>
-            </div>
-          )}
+          <div className="grid grid-cols-2 gap-3">
+            {askButton("FEED", "🌾", "Yem so‘rash", "bg-primary text-white")}
+            {askButton("VET", "🩺", "Veterinar chaqirish", "bg-accent text-white")}
+          </div>
+          {closedHint && <p className="-mt-1 text-center text-sm text-muted">{closedHint}</p>}
           {detail.vet_user && (
             <p className="flex items-center gap-1.5 text-sm text-muted">
               <Stethoscope className="size-4 text-accent" aria-hidden /> Veterinaringiz: <b className="text-ink">{personName(detail.vet_user)}</b>
@@ -105,7 +107,7 @@ function OwnerCabinet({ detail }: { detail: CaseDetail }) {
         <Alert tone="warning">Yetkazilgan mahsulotni olgan bo‘lsangiz, «Oldim» tugmasini bosing.</Alert>
       )}
 
-      {(requests.length > 0 || canRequest) && (
+      {(
         <Card>
           <h2 className="mb-3 text-base font-semibold">Mening so‘rovlarim</h2>
           {reqRes.error && <Alert className="mb-2">{reqRes.error}</Alert>}
