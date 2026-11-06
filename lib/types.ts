@@ -118,6 +118,8 @@ export interface CaseStage {
   decided_by_name?: string;
   decided_at?: string | null;
   return_reason?: string;
+  /** A finished stage (not the owner's) has its own act: GET /cases/{id}/stages/{n}/act. */
+  has_act?: boolean;
   photos?: Photo[];
   documents?: CaseDocument[];
   events?: StageEvent[];

@@ -319,6 +319,9 @@ export function CaseView({ detail, readOnly = false, extras = true }: { detail: 
               events={eventsFor(stage)}
               conclusion={stage.number === 1 ? detail.conclusion : undefined}
               growing={stage.number === GROWING_STAGE ? growing : null}
+              caseId={detail.id}
+              caseCode={detail.code}
+              showAct={!!stage.has_act && !!user && user.role !== "OWNER"}
             />
           ))}
         </ol>
@@ -337,6 +340,35 @@ export function CaseView({ detail, readOnly = false, extras = true }: { detail: 
   );
 }
 
+/** "Dalolatnoma" of one finished stage: executor + Administrator, as PDF. */
+function StageActButton({ caseId, caseCode, number }: { caseId: number; caseCode: string; number: number }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const download = async () => {
+    setBusy(true);
+    try {
+      await apiDownload(`/cases/${caseId}/stages/${number}/act`, `${caseCode}-${String(number).padStart(2, "0")}-dalolatnoma.pdf`);
+    } catch (caught) {
+      toast.error(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      loading={busy}
+      onClick={download}
+      icon={<FileDown className="size-4" aria-hidden />}
+      className="ml-auto"
+      aria-label={`${number}-bosqich dalolatnomasi`}
+    >
+      Dalolatnoma
+    </Button>
+  );
+}
+
 function TimelineItem({
   stage,
   isCurrent,
@@ -346,7 +378,13 @@ function TimelineItem({
   events,
   conclusion,
   growing,
+  caseId,
+  caseCode,
+  showAct = false,
 }: {
+  caseId: number;
+  caseCode: string;
+  showAct?: boolean;
   growing?: Growing | null;
   stage: CaseStage;
   isCurrent: boolean;
@@ -383,6 +421,7 @@ function TimelineItem({
             {stage.number}. {stage.title || def?.title}
           </p>
           {!waiting && <StageStatusBadge status={stage.status} label={stage.status_display} />}
+          {showAct && <StageActButton caseId={caseId} caseCode={caseCode} number={stage.number} />}
         </div>
         <p className="text-xs text-muted">
           {roleLabel(stage.executor_role ?? def?.executor)}
