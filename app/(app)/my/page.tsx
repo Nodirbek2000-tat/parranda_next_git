@@ -23,7 +23,8 @@ import { toVisits, VISITS_PATH } from "@/lib/visits";
 export default function MyPage() {
   const list = useApi<Paged<CaseSummary>>("/cases");
   const items = list.data ? listOf(list.data) : [];
-  const single = items.length === 1 ? items[0] : null;
+  // several partiyas: the running one is the cabinet, otherwise the only / latest finished one
+  const single = items.find((i) => i.status === "IN_PROGRESS") ?? (items.length === 1 ? items[0] : null);
   const detail = useApi<CaseDetail>(single ? `/cases/${single.id}` : null);
 
   return (

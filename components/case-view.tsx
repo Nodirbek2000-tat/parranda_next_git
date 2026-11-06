@@ -19,6 +19,7 @@ import { FinanceBlock, GrowingProgress, VetBlock } from "./case-extras";
 import { useConfirm } from "./confirm";
 import { AuthImage, DocumentLink } from "./media";
 import { Modal } from "./modal";
+import { CycleLinks, NextCycleButton } from "./next-cycle";
 import { RequestList } from "./requests";
 import { StageForm } from "./stage-form";
 import { TempPassword } from "./temp-password";
@@ -169,6 +170,7 @@ export function CaseView({ detail, readOnly = false, extras = true }: { detail: 
       <div className="rounded-2xl border border-primary bg-primary p-4 text-white shadow-card">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold tracking-wide text-white/80">{detail.code}</span>
+          {(detail.cycle ?? 1) > 1 && <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold">{detail.cycle}-partiya</span>}
           <CaseStatusBadge status={detail.status} label={detail.status_display} />
         </div>
         <h1 className="mt-1 text-xl font-semibold">{detail.owner_full_name || detail.name || "—"}</h1>
@@ -204,7 +206,9 @@ export function CaseView({ detail, readOnly = false, extras = true }: { detail: 
             <b>Rad etish sababi:</b> {detail.reject_reason}
           </p>
         )}
+        <CycleLinks detail={detail} />
         <div className="mt-3 flex flex-wrap gap-2">
+          {!readOnly && <NextCycleButton detail={detail} />}
           <Button variant="secondary" size="sm" loading={pdfBusy} onClick={downloadPdf} icon={<FileDown className="size-4" aria-hidden />}>
             Dalolatnoma (PDF)
           </Button>

@@ -145,6 +145,8 @@ export interface CaseSummary {
   address?: string;
   latitude?: number | string | null;
   longitude?: number | string | null;
+  /** Partiya number of the household (1, 2, ...). */
+  cycle?: number;
   status: CaseStatus;
   status_display?: string;
   current_stage: number;
@@ -195,6 +197,10 @@ export interface Growing {
 }
 
 export interface CaseDetail extends CaseSummary {
+  /** All partiyas of this household, oldest first. */
+  cycles?: { id: number; code: string; cycle: number; status: CaseStatus }[];
+  /** Admin may start the next partiya of a finished household from one of `options` (default `default_stage`). */
+  next_cycle?: { can: boolean; default_stage: number; options: { number: number; title: string }[] };
   latitude?: number | string | null;
   longitude?: number | string | null;
   owner_user?: PersonRef;

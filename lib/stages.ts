@@ -300,7 +300,7 @@ function fmtPlain(n: number): string {
 }
 
 /** Data keys that are shown elsewhere (finance block) and not in the timeline rows. */
-export const HIDDEN_DATA_KEYS = new Set(["finance"]);
+export const HIDDEN_DATA_KEYS = new Set(["finance", "carried_over", "from_case"]);
 
 /** Number stored in an earlier stage's data (for cross-stage limits). */
 export function stageValue(detail: CaseDetail, stageNumber: number, key: string): number | null {

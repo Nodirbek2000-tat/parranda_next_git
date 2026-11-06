@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { FileSpreadsheet, RefreshCw } from "lucide-react";
@@ -18,15 +19,24 @@ import {
   reportPath,
   toCaseRows,
   toFinanceReport,
+  toGeo,
   toOverview,
   toStaffRows,
+  type GeoReport,
   type Money,
   type ReportKey,
 } from "@/lib/reports";
 import { REQUEST_STATUS_LABELS, type RequestStatus } from "@/lib/requests";
 import { roleLabel } from "@/lib/roles";
 import { stageDef } from "@/lib/stages";
+import { TONE_COLORS, TONE_LEGEND } from "@/components/map/tones";
 import { useApi } from "@/lib/use-api";
+
+/** Leaflet needs `window`: the region map is client-only. */
+const RegionMap = dynamic(() => import("@/components/map/region-map"), {
+  ssr: false,
+  loading: () => <div className="flex size-full items-center justify-center text-sm text-muted">Xarita yuklanmoqda…</div>,
+});
 
 type Filters = { date_from?: string; date_to?: string; district?: string };
 
@@ -101,7 +111,7 @@ export default function ReportsPage() {
       </div>
       <Loadable data={resource.data} error={resource.error} reload={resource.reload}>
         {(data) =>
-          tab === "overview" ? <OverviewTab data={data} /> : tab === "cases" ? <CasesTab data={data} /> : tab === "staff" ? <StaffTab data={data} /> : <FinanceTab data={data} />
+          tab === "overview" ? <OverviewTab data={data} district={district} onDistrict={setDistrict} /> : tab === "cases" ? <CasesTab data={data} /> : tab === "staff" ? <StaffTab data={data} /> : <FinanceTab data={data} />
         }
       </Loadable>
     </>
@@ -136,11 +146,13 @@ function MoneyRows({ title, money }: { title: string; money: Money | null }) {
   );
 }
 
-function OverviewTab({ data }: { data: unknown }) {
+function OverviewTab({ data, district, onDistrict }: { data: unknown; district: string; onDistrict: (name: string) => void }) {
   const o = toOverview(data);
+  const geo = toGeo(data);
   const reqRows = Object.entries(o.requests);
   return (
     <div className="flex flex-col gap-4">
+      {geo && <RegionSection geo={geo} district={district} onDistrict={onDistrict} />}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Jami xonadon" value={fmtNumber(o.cases.total ?? (o.cases.inProgress ?? 0) + (o.cases.done ?? 0) + (o.cases.rejected ?? 0))} />
         <Stat label="Jarayonda" value={fmtNumber(o.cases.inProgress)} />
@@ -400,5 +412,115 @@ function FinanceTab({ data }: { data: unknown }) {
         <p className="px-3 py-2 text-xs text-muted">Summalar so‘mda.</p>
       </Card>
     </div>
+  );
+}
+
+/** Samarqand viloyati map: a bubble per district (click = filter every report by it) and the district table. */
+function RegionSection({ geo, district, onDistrict }: { geo: GeoReport; district: string; onDistrict: (name: string) => void }) {
+  const selected = district || null;
+  const placed = geo.districts.filter((d) => d.latitude !== null);
+  const other = geo.districts.find((d) => d.latitude === null && d.total > 0);
+  const chosen = geo.districts.find((d) => d.name === selected);
+  const rows = [...placed].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  return (
+    <Card className="p-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
+        <div>
+          <h2 className="font-semibold">Samarqand viloyati xaritasi</h2>
+          <p className="text-xs text-muted">Doira ichidagi raqam — xonadonlar soni. Tumanni bossangiz, butun hisobot shu tuman bo‘yicha chiqadi.</p>
+        </div>
+        {selected && (
+          <Button variant="secondary" size="sm" onClick={() => onDistrict("")}>
+            Barcha tumanlar
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 pt-2 text-xs text-muted">
+        {TONE_LEGEND.map((entry) => (
+          <span key={entry.tone} className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full" style={{ background: TONE_COLORS[entry.tone] }} aria-hidden />
+            {entry.label}
+          </span>
+        ))}
+        <span className="flex items-center gap-1.5">
+          <span className="size-3 rounded-full border-2 border-[#D97706] bg-[#1F6FB5]" aria-hidden />
+          Tumanda muddati o‘tgan bor
+        </span>
+      </div>
+      <div className="grid gap-0 p-4 lg:grid-cols-[1fr_300px] lg:gap-4">
+        <div className="h-[460px] overflow-hidden rounded-xl border border-line">
+          <RegionMap
+            districts={geo.districts}
+            points={geo.points}
+            selected={selected}
+            onSelect={(name) => onDistrict(name ?? "")}
+            className="size-full"
+          />
+        </div>
+        <div className="mt-4 flex flex-col gap-3 lg:mt-0">
+          {chosen && (
+            <div className="rounded-xl bg-accent-soft p-3 text-sm">
+              <p className="font-semibold text-primary">{chosen.name}</p>
+              <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-[13px]">
+                <dt className="text-muted">Xonadonlar</dt>
+                <dd className="text-right font-semibold tabular-nums">{fmtNumber(chosen.total)}</dd>
+                <dt className="text-muted">Jarayonda</dt>
+                <dd className="text-right tabular-nums">{fmtNumber(chosen.inProgress)}</dd>
+                <dt className="text-muted">Yakunlangan</dt>
+                <dd className="text-right tabular-nums">{fmtNumber(chosen.done)}</dd>
+                <dt className="text-muted">Muddati o‘tgan</dt>
+                <dd className={cn("text-right tabular-nums", chosen.overdue > 0 && "font-semibold text-danger")}>{fmtNumber(chosen.overdue)}</dd>
+                <dt className="text-muted">Parranda (hozir)</dt>
+                <dd className="text-right tabular-nums">{fmtNumber(chosen.birds)}</dd>
+                <dt className="text-muted">Xarajat</dt>
+                <dd className="text-right tabular-nums">{fmtMoney(chosen.cost)}</dd>
+                <dt className="text-muted">Daromad</dt>
+                <dd className="text-right tabular-nums">{fmtMoney(chosen.revenue)}</dd>
+              </dl>
+            </div>
+          )}
+          <div className="max-h-[420px] overflow-y-auto rounded-xl border border-line">
+            <table className="w-full text-[13px]">
+              <thead className="sticky top-0 bg-subtle text-xs text-muted">
+                <tr>
+                  <th className="px-2.5 py-2 text-left font-medium">Tuman / shahar</th>
+                  <th className="px-2 py-2 text-right font-medium">Jami</th>
+                  <th className="px-2 py-2 text-right font-medium">Jarayon</th>
+                  <th className="px-2.5 py-2 text-right font-medium" title="Muddati o‘tgan">
+                    Kech.
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((d) => (
+                  <tr
+                    key={d.name}
+                    onClick={() => onDistrict(d.name === selected ? "" : d.name)}
+                    className={cn(
+                      "cursor-pointer border-t border-line hover:bg-subtle",
+                      d.name === selected && "bg-accent-soft font-semibold",
+                      d.total === 0 && "text-muted",
+                    )}
+                  >
+                    <td className="px-2.5 py-1.5">{d.name}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{d.total}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{d.inProgress}</td>
+                    <td className={cn("px-2.5 py-1.5 text-right tabular-nums", d.overdue > 0 && "font-semibold text-danger")}>{d.overdue}</td>
+                  </tr>
+                ))}
+                {other && (
+                  <tr className="border-t border-line text-muted">
+                    <td className="px-2.5 py-1.5">{other.name}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{other.total}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{other.inProgress}</td>
+                    <td className="px-2.5 py-1.5 text-right tabular-nums">{other.overdue}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }

@@ -7,20 +7,13 @@ import { divIcon, latLngBounds, type LatLngExpression } from "leaflet";
 import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { cn } from "@/lib/cn";
 import { fmtNumber } from "@/lib/format";
+import { TONE_COLORS, type PointTone } from "./tones";
 
 /** Samarqand viloyati — the view when there is nothing to fit to. */
 const DEFAULT_CENTER: LatLngExpression = [39.654, 66.959];
 const DEFAULT_ZOOM = 9;
 
-export type PointTone = "growing" | "progress" | "done" | "rejected" | "overdue";
-
-export const TONE_COLORS: Record<PointTone, string> = {
-  growing: "#2F8F4E",
-  progress: "#2563EB",
-  done: "#6B7C72",
-  rejected: "#B42318",
-  overdue: "#D97706",
-};
+export { TONE_COLORS, type PointTone } from "./tones";
 
 export interface MapPoint {
   id: number;
@@ -40,7 +33,7 @@ export interface MapPoint {
  * react-leaflet removes the Leaflet map in its effect cleanup; Next.js may hide a route with <Activity>
  * (effects cleaned up, state kept), so a fresh key per effect mount keeps the map alive after navigation.
  */
-function useMapGeneration(): number {
+export function useMapGeneration(): number {
   const counter = useRef(0);
   const [generation, setGeneration] = useState(0);
   useEffect(() => {

@@ -300,3 +300,79 @@ export function fmtHours(hours: number | null): string {
   const rest = Math.round(hours - days * 24);
   return rest ? `${days} kun ${rest} soat` : `${days} kun`;
 }
+
+/** Region map of the overview: every district of the viloyat with its numbers, and the households with a location. */
+export interface GeoDistrict {
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+  total: number;
+  inProgress: number;
+  done: number;
+  rejected: number;
+  overdue: number;
+  birds: number;
+  cost: number;
+  revenue: number;
+}
+
+export interface GeoPoint {
+  id: number;
+  code: string;
+  owner: string;
+  district: string;
+  mfy: string;
+  latitude: number;
+  longitude: number;
+  status: string;
+  currentStage: number;
+  stageTitle: string;
+  overdue: boolean;
+  birds: number | null;
+  days: number | null;
+}
+
+export interface GeoReport {
+  selected: string | null;
+  districts: GeoDistrict[];
+  points: GeoPoint[];
+}
+
+export function toGeo(data: unknown): GeoReport | null {
+  const geo = obj(obj(data)?.geo);
+  if (!geo) return null;
+  const rows = (value: unknown) => (Array.isArray(value) ? (value as unknown[]).map(obj).filter((r): r is Raw => r !== null) : []);
+  return {
+    selected: str(geo, "selected") || null,
+    districts: rows(geo.districts).map((r) => ({
+      name: str(r, "name"),
+      latitude: num(r, "latitude"),
+      longitude: num(r, "longitude"),
+      total: num(r, "total") ?? 0,
+      inProgress: num(r, "in_progress") ?? 0,
+      done: num(r, "done") ?? 0,
+      rejected: num(r, "rejected") ?? 0,
+      overdue: num(r, "overdue") ?? 0,
+      birds: num(r, "birds") ?? 0,
+      cost: num(r, "cost") ?? 0,
+      revenue: num(r, "revenue") ?? 0,
+    })),
+    points: rows(geo.points)
+      .map((r) => ({
+        id: num(r, "id") ?? 0,
+        code: str(r, "code"),
+        owner: str(r, "owner_full_name"),
+        district: str(r, "district"),
+        mfy: str(r, "mfy"),
+        latitude: num(r, "latitude") ?? NaN,
+        longitude: num(r, "longitude") ?? NaN,
+        status: str(r, "status"),
+        currentStage: num(r, "current_stage") ?? 0,
+        stageTitle: str(r, "stage_title"),
+        overdue: r.is_overdue === true,
+        birds: num(r, "birds"),
+        days: num(r, "days_since_delivery"),
+      }))
+      .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)),
+  };
+}

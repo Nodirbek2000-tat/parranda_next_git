@@ -4,7 +4,8 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { MapPin } from "lucide-react";
 import { Card, PageHeader, Select, Spinner } from "@/components/ui";
-import { TONE_COLORS, type MapPoint, type PointTone } from "@/components/map/leaflet-map";
+import type { MapPoint } from "@/components/map/leaflet-map";
+import { TONE_COLORS, TONE_LEGEND as LEGEND, toneOf as toneFor, type PointTone } from "@/components/map/tones";
 import { listOf } from "@/lib/api";
 import { SAMARQAND_DISTRICTS } from "@/lib/districts";
 import { fmtNumber } from "@/lib/format";
@@ -18,21 +19,10 @@ const LeafletMap = dynamic(() => import("@/components/map/leaflet-map"), {
   loading: () => <Spinner label="Xarita yuklanmoqda…" />,
 });
 
-const LEGEND: { tone: PointTone; label: string }[] = [
-  { tone: "growing", label: "Parvarishda" },
-  { tone: "progress", label: "Jarayonda" },
-  { tone: "overdue", label: "Muddati o‘tgan" },
-  { tone: "done", label: "Yakunlangan" },
-  { tone: "rejected", label: "Rad etilgan" },
-];
-
 type CaseWithCoords = CaseSummary;
 
 function toneOf(item: CaseWithCoords): PointTone {
-  if (item.status === "DONE") return "done";
-  if (item.status === "REJECTED") return "rejected";
-  if (item.is_overdue) return "overdue";
-  return item.current_stage === 10 ? "growing" : "progress";
+  return toneFor(item.status, item.current_stage, item.is_overdue);
 }
 
 function toPoint(item: CaseWithCoords): MapPoint | null {
