@@ -17,9 +17,9 @@ export const BRAND = "Navobod naslli parranda";
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 40 40" className={cn("size-9 shrink-0", className)} role="img" aria-label="NNP">
-      <rect width="40" height="40" rx="10" fill="#12372A" />
-      <ellipse cx="29.5" cy="10" rx="3" ry="3.6" fill="#E8B04A" />
-      <text x="19" y="25.5" textAnchor="middle" fontSize="12.5" fontWeight="700" fill="#FFFFFF" fontFamily="Arial, sans-serif">
+      <rect width="40" height="40" rx="10" fill="#FFFFFF" />
+      <path d="M23 12.5c-.8-2.6.6-5 2.9-5.3.4-2.4 3-3.6 5-2.3 1.8-1.2 4.4-.2 4.6 2.2 2 .6 2.6 3.2 1 4.8-.5 2.2-2.4 3.4-4.4 3.1z" fill="#E3262B" />
+      <text x="18.5" y="29" textAnchor="middle" fontSize="14" fontWeight="800" letterSpacing="-0.3" fill="#1F6FB5" fontFamily="Arial, sans-serif">
         NNP
       </text>
     </svg>

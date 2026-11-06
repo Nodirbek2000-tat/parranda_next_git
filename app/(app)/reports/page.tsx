@@ -5,7 +5,8 @@ import Link from "next/link";
 import { FileSpreadsheet, RefreshCw } from "lucide-react";
 import { BarList, SplitBar } from "@/components/bars";
 import { useToast } from "@/components/toast";
-import { Badge, Button, Card, Empty, Field, Input, Loadable, PageHeader, Stat } from "@/components/ui";
+import { Badge, Button, Card, Empty, Field, Input, Loadable, PageHeader, Select, Stat } from "@/components/ui";
+import { SAMARQAND_DISTRICTS } from "@/lib/districts";
 import { errorMessage } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { COST_ITEMS } from "@/lib/finance";
@@ -27,7 +28,7 @@ import { roleLabel } from "@/lib/roles";
 import { stageDef } from "@/lib/stages";
 import { useApi } from "@/lib/use-api";
 
-type Filters = { date_from?: string; date_to?: string };
+type Filters = { date_from?: string; date_to?: string; district?: string };
 
 /** Reports for ADMIN / SUPERADMIN: Umumiy, Xonadonlar, Xodimlar, Moliya; each tab has its Excel download. */
 export default function ReportsPage() {
@@ -35,8 +36,9 @@ export default function ReportsPage() {
   const [tab, setTab] = useState<ReportKey>("overview");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [district, setDistrict] = useState("");
   const [busy, setBusy] = useState(false);
-  const filters: Filters = { date_from: from || undefined, date_to: to || undefined };
+  const filters: Filters = { date_from: from || undefined, date_to: to || undefined, district: district || undefined };
   const resource = useApi<unknown>(reportPath(tab), filters);
 
   const excel = async () => {
@@ -79,12 +81,22 @@ export default function ReportsPage() {
           ))}
         </div>
       </div>
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-2xl sm:grid-cols-[1fr_1fr_1.3fr]">
         <Field label="Sanadan" htmlFor="r-from">
           <Input id="r-from" type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
         </Field>
         <Field label="Sanagacha" htmlFor="r-to">
           <Input id="r-to" type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+        </Field>
+        <Field label="Tuman / shahar" htmlFor="r-district" className="col-span-2 sm:col-span-1">
+          <Select id="r-district" value={district} onChange={(e) => setDistrict(e.target.value)}>
+            <option value="">Barcha tumanlar</option>
+            {SAMARQAND_DISTRICTS.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
         </Field>
       </div>
       <Loadable data={resource.data} error={resource.error} reload={resource.reload}>

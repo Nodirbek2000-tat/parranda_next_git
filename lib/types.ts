@@ -141,6 +141,8 @@ export interface CaseSummary {
   district?: string;
   mfy?: string;
   address?: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   status: CaseStatus;
   status_display?: string;
   current_stage: number;

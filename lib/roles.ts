@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ChartColumn, ClipboardList, House, Inbox, LayoutDashboard, ListTodo, Package, ScrollText, SquarePlus, Stethoscope, Users, Warehouse } from "lucide-react";
+import { ChartColumn, ClipboardList, House, Inbox, LayoutDashboard, ListTodo, Map as MapIcon, Package, ScrollText, SquarePlus, Stethoscope, Users, Warehouse } from "lucide-react";
 import type { Me, Role } from "./types";
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -44,6 +44,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/cases/new", label: "Yangi xonadon", short: "Yangi", icon: SquarePlus, roles: ["INSPECTOR"] },
   { href: "/requests", label: "So‘rovlar", short: "So‘rovlar", icon: Inbox, roles: REQUEST_ROLES },
   { href: "/visits", label: "Veterinar tashriflari", short: "Tashriflar", icon: Stethoscope, roles: VISIT_ROLES },
+  { href: "/map", label: "Xarita", short: "Xarita", icon: MapIcon, roles: ["SUPERADMIN"] },
   { href: "/dashboard", label: "Boshqaruv paneli", short: "Panel", icon: LayoutDashboard, roles: ["SUPERADMIN", "ADMIN", "DIRECTOR", "HR"] },
   { href: "/warehouse", label: "Ombor", short: "Ombor", icon: Warehouse, roles: ["WAREHOUSE", "ADMIN", "SUPERADMIN"] },
   { href: "/packages", label: "Paketlar", short: "Paketlar", icon: Package, roles: ["ADMIN", "SUPERADMIN", "WAREHOUSE", "INSPECTOR"] },

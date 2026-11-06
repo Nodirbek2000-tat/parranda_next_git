@@ -172,7 +172,7 @@ export function StageForm({ detail, stage, def }: { detail: CaseDetail; stage: C
           return (
             <div key={field.key} className="flex flex-col gap-1">
               <label className="flex min-h-11 items-center gap-3 rounded-xl border border-line bg-surface px-3 text-sm">
-                <input type="checkbox" checked={values[field.key] === true} onChange={(e) => set(field.key, e.target.checked)} className="size-5 accent-[#2f6b3f]" />
+                <input type="checkbox" checked={values[field.key] === true} onChange={(e) => set(field.key, e.target.checked)} className="size-5 accent-[#1f6fb5]" />
                 {field.label}
               </label>
               {error && <p className="text-[13px] text-danger">{error}</p>}

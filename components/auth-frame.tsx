@@ -7,7 +7,7 @@ export function AuthFrame({ title, description, children }: { title: string; des
     <main className="flex min-h-app flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-center">
-          <LogoMark className="size-14" />
+          <LogoMark className="size-14 rounded-2xl shadow-card ring-1 ring-line" />
           <p className="mt-3 text-xs font-medium uppercase tracking-[0.12em] text-muted">{BRAND}</p>
         </div>
         <div className="rounded-2xl border border-line bg-surface p-6 shadow-card">

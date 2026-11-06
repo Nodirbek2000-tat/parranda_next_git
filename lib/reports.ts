@@ -16,7 +16,7 @@ export const REPORT_TABS: { key: ReportKey; label: string }[] = [
 
 export const reportPath = (key: ReportKey) => `/reports/${key}`;
 
-export function downloadReport(key: ReportKey, filters: { date_from?: string; date_to?: string }): Promise<void> {
+export function downloadReport(key: ReportKey, filters: { date_from?: string; date_to?: string; district?: string }): Promise<void> {
   const query: Query = { ...filters, format: "xlsx" };
   return apiDownload(buildPath(reportPath(key), query), `hisobot-${key}.xlsx`);
 }
