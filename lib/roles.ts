@@ -35,7 +35,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/tasks", label: "Mening vazifalarim", short: "Vazifalar", icon: ListTodo, roles: STAFF },
   { href: "/cases", label: "Xonadonlar", short: "Xonadonlar", icon: ClipboardList, roles: STAFF },
-  { href: "/cases/new", label: "Yangi xonadon", short: "Yangi", icon: SquarePlus, roles: ["INSPECTOR", "ADMIN", "SUPERADMIN"] },
+  { href: "/cases/new", label: "Yangi xonadon", short: "Yangi", icon: SquarePlus, roles: ["INSPECTOR"] },
   { href: "/dashboard", label: "Boshqaruv paneli", short: "Panel", icon: LayoutDashboard, roles: ["SUPERADMIN", "ADMIN", "DIRECTOR", "HR"] },
   { href: "/warehouse", label: "Ombor", short: "Ombor", icon: Warehouse, roles: ["WAREHOUSE", "ADMIN", "SUPERADMIN"] },
   { href: "/packages", label: "Paketlar", short: "Paketlar", icon: Package, roles: ["ADMIN", "SUPERADMIN", "WAREHOUSE", "INSPECTOR"] },

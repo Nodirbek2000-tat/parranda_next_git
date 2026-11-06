@@ -28,7 +28,7 @@ function CasesList() {
   const [stage, setStage] = useState(params.get("stage") ?? "");
   const query = useDebounced(search.trim());
   const resource = useApi<Paged<CaseSummary>>("/cases", { search: query, status, stage });
-  const canCreate = ["INSPECTOR", "ADMIN", "SUPERADMIN"].includes(effectiveRole(user));
+  const canCreate = effectiveRole(user) === "INSPECTOR"; // only the Inspector registers a household
   const count = resource.data && !Array.isArray(resource.data) ? resource.data.count : undefined;
 
   return (
