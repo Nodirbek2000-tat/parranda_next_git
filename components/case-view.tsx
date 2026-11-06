@@ -9,16 +9,22 @@ import { cn } from "@/lib/cn";
 import { fmtDateTime, fmtMoney, personName } from "@/lib/format";
 import { effectiveRole, isAdmin, roleLabel } from "@/lib/roles";
 import { useDelete } from "@/lib/use-delete";
-import { dataLabel, resolveStageDef, stageDef, STAGES } from "@/lib/stages";
-import type { CaseDetail, CaseStage, Me, Photo, CaseDocument, StageEvent } from "@/lib/types";
+import { growingOf } from "@/lib/growing";
+import { toRequests } from "@/lib/requests";
+import { dataLabel, GROWING_STAGE, HIDDEN_DATA_KEYS, resolveStageDef, stageDef, STAGES } from "@/lib/stages";
+import { toVisits } from "@/lib/visits";
+import type { CaseDetail, CaseStage, Growing, Me, Photo, CaseDocument, StageEvent } from "@/lib/types";
 import { CaseStatusBadge, DeadlineText, StageStatusBadge } from "./case-card";
+import { FinanceBlock, GrowingProgress, VetBlock } from "./case-extras";
 import { useConfirm } from "./confirm";
 import { AuthImage, DocumentLink } from "./media";
 import { Modal } from "./modal";
+import { RequestList } from "./requests";
 import { StageForm } from "./stage-form";
 import { TempPassword } from "./temp-password";
 import { useToast } from "./toast";
 import { Alert, Button, Card } from "./ui";
+import { VisitList } from "./visits";
 
 const ACTION_LABELS: Record<string, string> = {
   create: "Yaratildi",
@@ -32,7 +38,7 @@ function stageNumberOf(item: { stage?: number; stage_number?: number }): number 
   return item.stage_number ?? item.stage;
 }
 
-/** Stages sorted 1..10; missing ones are filled from the local chain for display. */
+/** Stages sorted 1..13; missing ones are filled from the local chain for display. */
 function allStages(detail: CaseDetail): CaseStage[] {
   const byNumber = new Map(detail.stages?.map((s) => [s.number, s]));
   return STAGES.map(
@@ -52,7 +58,8 @@ function permissions(detail: CaseDetail, stage: CaseStage | undefined, user: Me)
   const def = stageDef(stage.number);
   const role = effectiveRole(user);
   const admin = role === "ADMIN" || role === "SUPERADMIN";
-  const executor = def?.executor === role || (stage.number === 9 && admin);
+  // only the stage's own role submits (client rule, ARCHITECTURE_V2 note)
+  const executor = def?.executor === role;
   const approver = def?.approver === role || role === "SUPERADMIN" || (def?.approver === "ADMIN" && admin);
   const open = stage.status === "ACTIVE" || stage.status === "RETURNED";
   return {
@@ -63,7 +70,7 @@ function permissions(detail: CaseDetail, stage: CaseStage | undefined, user: Me)
   };
 }
 
-export function CaseView({ detail, readOnly = false }: { detail: CaseDetail; readOnly?: boolean }) {
+export function CaseView({ detail, readOnly = false, extras = true }: { detail: CaseDetail; readOnly?: boolean; extras?: boolean }) {
   const user = useMe();
   const router = useRouter();
   const deleteTwice = useDelete();
@@ -75,6 +82,11 @@ export function CaseView({ detail, readOnly = false }: { detail: CaseDetail; rea
   const current = detail.status === "IN_PROGRESS" ? stages.find((s) => s.number === detail.current_stage) : undefined;
   const can = permissions(detail, current, user);
   const currentDef = current ? resolveStageDef(current) : undefined;
+  const growing = growingOf(detail);
+  const requests = Array.isArray(detail.requests) ? toRequests(detail.requests) : null;
+  const visits = Array.isArray(detail.visits) ? toVisits(detail.visits) : null;
+  const staffView = user.role !== "OWNER";
+  const showVet = detail.vet_user !== undefined ? staffView || !!detail.vet_user : isAdmin(user) && detail.status !== "REJECTED";
 
   const photosFor = (stage: CaseStage): Photo[] => stage.photos ?? (detail.photos ?? []).filter((p) => stageNumberOf(p) === stage.number);
   const docsFor = (stage: CaseStage): CaseDocument[] =>
@@ -232,7 +244,11 @@ export function CaseView({ detail, readOnly = false }: { detail: CaseDetail; rea
             </h2>
             <StageStatusBadge status={current.status} label={current.status_display} />
           </div>
-          <DeadlineText due={current.due_at} overdue={current.is_overdue} className="mb-3" />
+          {current.number === GROWING_STAGE && growing ? (
+            <GrowingProgress growing={growing} className="mb-3" />
+          ) : (
+            <DeadlineText due={current.due_at} overdue={current.is_overdue} className="mb-3" />
+          )}
           {current.status === "RETURNED" && current.return_reason && (
             <Alert tone="warning" className="mb-3">
               <b>Qaytarilgan sabab:</b> {current.return_reason}
@@ -264,6 +280,30 @@ export function CaseView({ detail, readOnly = false }: { detail: CaseDetail; rea
         </Card>
       )}
 
+      {extras && growing && !(current?.number === GROWING_STAGE && showActions && (can.submit || can.approve)) && (
+        <Card>
+          <GrowingProgress growing={growing} />
+        </Card>
+      )}
+
+      {extras && showVet && <VetBlock detail={detail} />}
+
+      {extras && requests && (requests.length > 0 || growing) && (
+        <Card>
+          <h2 className="mb-3 text-base font-semibold">So‘rovlar ({requests.length})</h2>
+          <RequestList items={requests} showCase={false} empty="Hali so‘rov yo‘q." />
+        </Card>
+      )}
+
+      {extras && visits && (visits.length > 0 || growing) && (
+        <Card>
+          <h2 className="mb-3 text-base font-semibold">Veterinar tashriflari ({visits.length})</h2>
+          <VisitList items={visits} showCase={false} empty="Hali tashrif yo‘q." />
+        </Card>
+      )}
+
+      {extras && <FinanceBlock detail={detail} />}
+
       {/* timeline */}
       <Card>
         <h2 className="mb-3 text-base font-semibold">Bosqichlar</h2>
@@ -278,6 +318,7 @@ export function CaseView({ detail, readOnly = false }: { detail: CaseDetail; rea
               docs={docsFor(stage)}
               events={eventsFor(stage)}
               conclusion={stage.number === 1 ? detail.conclusion : undefined}
+              growing={stage.number === GROWING_STAGE ? growing : null}
             />
           ))}
         </ol>
@@ -304,7 +345,9 @@ function TimelineItem({
   docs,
   events,
   conclusion,
+  growing,
 }: {
+  growing?: Growing | null;
   stage: CaseStage;
   isCurrent: boolean;
   last: boolean;
@@ -316,7 +359,7 @@ function TimelineItem({
   const def = stageDef(stage.number);
   const done = stage.status === "DONE";
   const waiting = stage.status === "WAITING";
-  const data = Object.entries(stage.data ?? {}).filter(([key]) => !(key === "conclusion" && conclusion));
+  const data = Object.entries(stage.data ?? {}).filter(([key]) => !(key === "conclusion" && conclusion) && !HIDDEN_DATA_KEYS.has(key));
   const active = stage.status === "ACTIVE" || stage.status === "RETURNED" || stage.status === "SUBMITTED";
 
   return (
@@ -345,7 +388,11 @@ function TimelineItem({
           {roleLabel(stage.executor_role ?? def?.executor)}
           {(stage.approver_role ?? def?.approver) ? ` → tasdiq: ${roleLabel(stage.approver_role ?? def?.approver)}` : ""}
         </p>
-        {active && <DeadlineText due={stage.due_at} overdue={stage.is_overdue} className="mt-1" />}
+        {active && growing ? (
+          <GrowingProgress growing={growing} className="mt-1.5 max-w-sm" />
+        ) : (
+          active && <DeadlineText due={stage.due_at} overdue={stage.is_overdue} className="mt-1" />
+        )}
         {stage.return_reason && stage.status === "RETURNED" && (
           <p className="mt-1.5 rounded-lg bg-danger-soft px-2.5 py-1.5 text-[13px] text-danger">Qaytarilgan: {stage.return_reason}</p>
         )}

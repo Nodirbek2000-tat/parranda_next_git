@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { CheckCheck } from "lucide-react";
 import { api, ApiError, errorMessage, listOf } from "@/lib/api";
 import { fmtNumber } from "@/lib/format";
-import type { StageDef } from "@/lib/stages";
+import { crossCheck, fieldHint, type StageDef } from "@/lib/stages";
 import type { CaseDetail, CaseStage, Package, PackageItem } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 import { useConfirm } from "./confirm";
@@ -70,7 +70,7 @@ export function StageForm({ detail, stage, def }: { detail: CaseDetail; stage: C
   const [values, setValues] = useState<Values>(() => initialValues(def, stage));
   // HR and Director stages are decisions: their "done" is the approval itself.
   const isDecision = def.key === "hr" || def.key === "director";
-  const actionLabel = isDecision ? "Tasdiqlash" : "Bajarildi";
+  const actionLabel = def.submitLabel ?? (isDecision ? "Tasdiqlash" : "Bajarildi");
   const [note, setNote] = useState(stage.status === "RETURNED" ? (stage.note ?? "") : "");
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [docs, setDocs] = useState<UploadedDoc[]>([]);
@@ -100,8 +100,20 @@ export function StageForm({ detail, stage, def }: { detail: CaseDetail; stage: C
         if (!Number.isInteger(n)) next[field.key] = "Butun son kiriting";
         else if (field.min !== undefined && n < field.min) next[field.key] = `Kamida ${field.min}`;
         else data[field.key] = n;
+      } else if (field.type === "decimal") {
+        const n = Number(text.replace(/\s/g, "").replace(",", "."));
+        const digits = field.digits ?? 2;
+        if (!Number.isFinite(n)) next[field.key] = "Son kiriting";
+        else if (field.positive && n <= 0) next[field.key] = "0 dan katta bo‘lsin";
+        else if (field.min !== undefined && n < field.min) next[field.key] = `Kamida ${field.min}`;
+        else if (!new RegExp(`^\d+([.,]\d{1,${digits}})?$`).test(text.replace(/\s/g, ""))) next[field.key] = `Ko‘pi bilan ${digits} xona kasr`;
+        else data[field.key] = Math.round(n * 10 ** digits) / 10 ** digits;
       } else data[field.key] = text;
     }
+    for (const group of def.oneOf ?? []) {
+      if (!group.keys.some((key) => data[key] !== undefined)) next[group.keys[0]] = group.message;
+    }
+    if (!Object.keys(next).length) Object.assign(next, crossCheck(def.number, data, detail));
     if (def.note?.required && !note.trim()) next.note = "Majburiy maydon";
     // photos kept from an earlier submit (before a return) still count
     const kept = stage.photos?.length ?? 0;
@@ -123,7 +135,9 @@ export function StageForm({ detail, stage, def }: { detail: CaseDetail; stage: C
       title: isDecision ? "Tasdiqlash" : "Bosqichni topshirish",
       message: isDecision
         ? `«${stage.title || def.title}» tasdiqlanadi va keyingi bosqich ochiladi.`
-        : def.approver
+        : def.key === "growing"
+          ? "Parvarish davri yakunlanadi va logistikaga parrandalarni qushxonaga olib borish vazifasi beriladi."
+          : def.approver
           ? `«${stage.title || def.title}» bajarildi deb belgilanadi va tasdiqlashga yuboriladi.`
           : `«${stage.title || def.title}» bajarildi deb belgilanadi va keyingi bosqich ochiladi.`,
       confirmLabel: actionLabel,
@@ -166,7 +180,7 @@ export function StageForm({ detail, stage, def }: { detail: CaseDetail; stage: C
           );
         }
         return (
-          <Field key={field.key} label={field.label} htmlFor={id} required={field.required} error={error}>
+          <Field key={field.key} label={field.label} htmlFor={id} required={field.required} error={error} hint={fieldHint(def.number, field.key, detail) ?? field.hint}>
             {field.type === "select" ? (
               <Select id={id} value={String(values[field.key] ?? "")} onChange={(e) => set(field.key, e.target.value)} invalid={!!error}>
                 <option value="">— tanlang —</option>
@@ -182,13 +196,22 @@ export function StageForm({ detail, stage, def }: { detail: CaseDetail; stage: C
               <div className="relative">
                 <Input
                   id={id}
-                  inputMode={field.type === "int" ? "numeric" : undefined}
+                  inputMode={field.type === "int" ? "numeric" : field.type === "decimal" ? "decimal" : undefined}
                   value={String(values[field.key] ?? "")}
-                  onChange={(e) => set(field.key, field.type === "int" ? e.target.value.replace(/[^\d]/g, "") : e.target.value)}
+                  onChange={(e) =>
+                    set(
+                      field.key,
+                      field.type === "int"
+                        ? e.target.value.replace(/[^\d]/g, "")
+                        : field.type === "decimal"
+                          ? e.target.value.replace(/[^\d.,]/g, "").replace(/([.,].*)[.,]/g, "$1")
+                          : e.target.value,
+                    )
+                  }
                   invalid={!!error}
-                  className={field.type === "int" && field.suffix ? "pr-14" : undefined}
+                  className={(field.type === "int" || field.type === "decimal") && field.suffix ? "pr-14" : undefined}
                 />
-                {field.type === "int" && field.suffix && <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted">{field.suffix}</span>}
+                {(field.type === "int" || field.type === "decimal") && field.suffix && <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted">{field.suffix}</span>}
               </div>
             )}
           </Field>

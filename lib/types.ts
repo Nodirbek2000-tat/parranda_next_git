@@ -12,7 +12,8 @@ export type Role =
   | "LOGISTICS"
   | "VET"
   | "OWNER"
-  | "ACCOUNTANT";
+  | "ACCOUNTANT"
+  | "SLAUGHTERHOUSE";
 
 export interface Me {
   id: number;
@@ -94,7 +95,16 @@ export interface CaseStage {
   executor_role?: Role;
   approver_role?: Role | null;
   /** Field config from the backend chain (`cases/stages.py`). */
-  fields?: { name: string; label: string; type: string; required?: boolean; choices?: { value: string; label: string }[] }[];
+  fields?: {
+    name: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    choices?: { value: string; label: string }[];
+    min?: number | null;
+    decimal_places?: number | null;
+    help?: string;
+  }[];
   min_photos?: number;
   data?: Record<string, unknown> | null;
   note?: string;
@@ -147,6 +157,23 @@ export interface CaseSummary {
   current?: CaseStage | null;
 }
 
+/** A user brief `{id, full_name, role, role_display}`. */
+export interface UserBrief {
+  id: number;
+  full_name?: string;
+  username?: string;
+  role?: Role | string;
+  role_display?: string;
+}
+
+/** Growing period (stage 10 ACTIVE), ARCHITECTURE_V2_1 §4. */
+export interface Growing {
+  day: number;
+  total_days: number;
+  started_at?: string | null;
+  ends_at?: string | null;
+}
+
 export interface CaseDetail extends CaseSummary {
   latitude?: number | string | null;
   longitude?: number | string | null;
@@ -159,7 +186,21 @@ export interface CaseDetail extends CaseSummary {
   photos?: Photo[];
   documents?: CaseDocument[];
   events?: StageEvent[];
-  can?: { submit?: boolean; approve?: boolean; return?: boolean; reject?: boolean; owner_account?: boolean };
+  can?: {
+    submit?: boolean;
+    approve?: boolean;
+    return?: boolean;
+    reject?: boolean;
+    owner_account?: boolean;
+    assign_vet?: boolean;
+    request?: boolean;
+  };
+  /* v2.1 additions (read defensively; see lib/requests.ts, lib/visits.ts, lib/finance.ts) */
+  vet_user?: UserBrief | null;
+  growing?: Growing | null;
+  requests?: unknown[];
+  visits?: unknown[];
+  finance?: Record<string, unknown> | null;
 }
 
 export interface Product {
