@@ -2,126 +2,113 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { LoaderCircle } from "lucide-react";
-import { api } from "@/lib/api";
+import { useEffect, useState, type FormEvent } from "react";
+import { AuthFrame } from "@/components/auth-frame";
+import { useToast } from "@/components/toast";
+import { Alert, Button, buttonClasses, Field, Input, Spinner } from "@/components/ui";
+import { api, errorMessage, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { collect, REQUIRED, useForm } from "@/lib/form";
-import { homeFor } from "@/lib/nav";
-import type { AuthResponse, DetailResponse } from "@/lib/types";
-import { AuthFrame } from "@/components/layout/auth-frame";
-import { SessionError } from "@/components/layout/shell-states";
-import { Alert } from "@/components/ui/alert";
-import { Button, buttonClasses } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
-import { useToast } from "@/components/ui/toast";
+import { homeFor } from "@/lib/roles";
+import type { AuthResponse } from "@/lib/types";
 
-const MIN_LENGTH = 8;
+const MIN = 8;
 
 export default function ChangePasswordPage() {
   const router = useRouter();
   const toast = useToast();
-  const { status, user, error, retry, signIn, signOut } = useAuth();
-  const form = useForm({ old_password: "", new_password: "", confirm: "" });
-  /** Set when this page signs the user out itself and already navigates to /login. */
+  const { status, user, signIn, signOut, refreshUser } = useAuth();
+  const [oldPassword, setOld] = useState("");
+  const [newPassword, setNew] = useState("");
+  const [confirmPassword, setConfirm] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     if (status === "anonymous" && !leaving) router.replace("/login?next=%2Fchange-password");
   }, [status, leaving, router]);
 
-  const leaveToLogin = () => {
+  const leave = () => {
     setLeaving(true);
     signOut();
     router.replace("/login");
   };
 
-  if (status === "error" && error) return <SessionError error={error} onRetry={retry} onSignOut={signOut} />;
-
   if (!user) {
     return (
       <AuthFrame title="Parolni almashtirish">
-        <div className="flex items-center gap-3 text-sm text-muted" role="status">
-          <LoaderCircle className="size-4 animate-spin text-accent" aria-hidden />
-          Yuklanmoqda…
-        </div>
+        <Spinner />
       </AuthFrame>
     );
   }
 
   const forced = user.must_change_password;
 
-  const onSubmit = form.handleSubmit(
-    (values) =>
-      collect([
-        ["old_password", values.old_password ? undefined : REQUIRED],
-        [
-          "new_password",
-          !values.new_password
-            ? REQUIRED
-            : values.new_password.length < MIN_LENGTH
-              ? `Kamida ${MIN_LENGTH} ta belgi bo‘lsin`
-              : values.new_password === values.old_password
-                ? "Yangi parol eskisidan farq qilsin"
-                : undefined,
-        ],
-        ["confirm", values.confirm === values.new_password ? undefined : "Parollar mos kelmadi"],
-      ]),
-    (values) =>
-      api
-        .post<DetailResponse>("/auth/change-password", {
-          old_password: values.old_password,
-          new_password: values.new_password,
-        })
-        .then((response) => ({ detail: response.detail, password: values.new_password })),
-    async ({ detail, password }) => {
-      toast.success(detail || "Parol yangilandi");
-      // Changing the password revokes every token issued so far, this session's too:
-      // sign in again with the new password to get a fresh session.
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const next: Record<string, string> = {};
+    if (!oldPassword) next.old_password = "Joriy parolni kiriting";
+    if (newPassword.length < MIN) next.new_password = `Kamida ${MIN} ta belgi bo‘lsin`;
+    else if (newPassword === oldPassword) next.new_password = "Yangi parol eskisidan farq qilsin";
+    if (confirmPassword !== newPassword) next.confirm = "Parollar mos kelmadi";
+    setErrors(next);
+    setFormError(null);
+    if (Object.keys(next).length) return;
+    setPending(true);
+    try {
+      const response = await api.post<Partial<AuthResponse> & { detail?: string }>("/auth/change-password", {
+        old_password: oldPassword,
+        new_password: newPassword,
+      });
+      toast.success(response?.detail || "Parol yangilandi");
+      // The old tokens may be revoked (token_version). Use new tokens if returned, else log in again.
+      if (response?.access && response.refresh) {
+        signIn({ access: response.access, refresh: response.refresh, user: response.user ?? { ...user, must_change_password: false } });
+        const fresh = response.user ?? (await refreshUser().catch(() => null)) ?? user;
+        router.replace(homeFor(fresh));
+        return;
+      }
       try {
-        const auth = await api.post<AuthResponse>(
-          "/auth/login",
-          { username: user.username, password },
-          { auth: false },
-        );
+        const auth = await api.post<AuthResponse>("/auth/login", { username: user.username, password: newPassword }, false);
         signIn(auth);
-        router.replace(homeFor(auth.user.role));
+        router.replace(homeFor(auth.user));
       } catch {
         toast.error("Yangi parol bilan qaytadan kiring.");
-        leaveToLogin();
+        leave();
       }
-    },
-  );
+    } catch (caught) {
+      if (caught instanceof ApiError && Object.keys(caught.fields).length) setErrors(caught.fields);
+      setFormError(errorMessage(caught));
+      setPending(false);
+    }
+  };
 
   return (
     <AuthFrame
       title="Parolni almashtirish"
-      description={
-        forced
-          ? "Siz vaqtinchalik parol bilan kirdingiz. Davom etish uchun yangi parol o‘rnating."
-          : `Yangi parol kamida ${MIN_LENGTH} ta belgidan iborat bo‘lsin.`
-      }
+      description={forced ? "Siz vaqtinchalik parol bilan kirdingiz. Davom etish uchun yangi parol o‘rnating." : `Yangi parol kamida ${MIN} ta belgidan iborat bo‘lsin.`}
     >
       <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Field label="Joriy parol" {...form.field("old_password")}>
-          <Input {...form.control("old_password")} type="password" autoComplete="current-password" />
+        <Field label={forced ? "Vaqtinchalik (joriy) parol" : "Joriy parol"} htmlFor="old" error={errors.old_password}>
+          <Input id="old" type="password" value={oldPassword} onChange={(e) => setOld(e.target.value)} autoComplete="current-password" invalid={!!errors.old_password} />
         </Field>
-        <Field label="Yangi parol" hint={`Kamida ${MIN_LENGTH} ta belgi`} {...form.field("new_password")}>
-          <Input {...form.control("new_password")} type="password" autoComplete="new-password" />
+        <Field label="Yangi parol" htmlFor="new" error={errors.new_password} hint={`Kamida ${MIN} ta belgi`}>
+          <Input id="new" type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} autoComplete="new-password" invalid={!!errors.new_password} />
         </Field>
-        <Field label="Yangi parolni takrorlang" {...form.field("confirm")}>
-          <Input {...form.control("confirm")} type="password" autoComplete="new-password" />
+        <Field label="Yangi parolni takrorlang" htmlFor="confirm" error={errors.confirm}>
+          <Input id="confirm" type="password" value={confirmPassword} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" invalid={!!errors.confirm} />
         </Field>
-        {form.formError && <Alert>{form.formError}</Alert>}
-        <Button type="submit" loading={form.pending} className="mt-1 w-full">
+        {formError && <Alert>{formError}</Alert>}
+        <Button type="submit" loading={pending} className="w-full">
           Saqlash
         </Button>
         {forced ? (
-          <Button variant="ghost" className="w-full" onClick={leaveToLogin}>
+          <Button variant="ghost" className="w-full" onClick={leave}>
             Chiqish
           </Button>
         ) : (
-          <Link href={homeFor(user.role)} className={buttonClasses("ghost", "md", "w-full")}>
+          <Link href={homeFor(user)} className={buttonClasses("ghost", "md", "w-full")}>
             Orqaga
           </Link>
         )}

@@ -1,280 +1,184 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
-import { Activity, Beef, Bird, ClipboardList, House, Package, Truck, Warehouse, Wheat } from "lucide-react";
-import { mortalityTone } from "@/lib/stats";
+import { RefreshCw } from "lucide-react";
+import { Button, Card, Loadable, PageHeader, Stat } from "@/components/ui";
+import { cn } from "@/lib/cn";
+import { fmtDateTime, fmtNumber, personName } from "@/lib/format";
+import { STAGES } from "@/lib/stages";
+import type { PersonRef, Product } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
-import { formatDate, formatNumber, todayIso } from "@/lib/format";
-import type { AdminDashboard, AdminDashboardV3, HouseholdMapPoint, OverviewStats } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
-import { LinkButton } from "@/components/ui/button";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
-import { EmptyState } from "@/components/ui/empty-state";
-import { ErrorState, StaleDataError } from "@/components/ui/error-state";
-import { PageHeader } from "@/components/ui/page-header";
-import { Skeleton, StatsSkeleton } from "@/components/ui/skeleton";
-import { StatCard } from "@/components/ui/stat-card";
-import { MapView, toMapPoint } from "@/components/map/map-view";
-import { MiniBarChart } from "@/features/dashboard/mini-bar-chart";
-import { DashboardPeriodSection, MonthlyProductionCard, PeriodSectionSkeleton } from "@/features/dashboard/period-section";
-import { DashboardExpiringLots, OperationsRow, ProblemHouseholdsCard } from "@/features/dashboard/operations";
-import { movementColumns } from "@/features/movements/movement-columns";
+
+type Raw = Record<string, unknown>;
+
+interface StageCount {
+  number: number;
+  title: string;
+  count: number;
+  overdue: number;
+}
+
+interface DashEvent {
+  case?: { id: number; code: string; name?: string } | number | null;
+  case_id?: number;
+  case_code?: string;
+  stage_number?: number;
+  action: string;
+  action_display?: string;
+  actor?: PersonRef;
+  actor_name?: string;
+  note?: string;
+  created_at: string;
+}
+
+const ACTIONS: Record<string, string> = { create: "Yaratildi", submit: "Topshirildi", approve: "Tasdiqlandi", return: "Qaytarildi", reject: "Rad etildi" };
+
+function num(...values: unknown[]): number {
+  for (const value of values) if (value !== undefined && value !== null && Number.isFinite(Number(value))) return Number(value);
+  return 0;
+}
+
+function pick<T>(raw: Raw, ...keys: string[]): T | undefined {
+  for (const key of keys) if (raw[key] !== undefined) return raw[key] as T;
+  const totals = raw.totals as Raw | undefined;
+  if (totals) for (const key of keys) if (totals[key] !== undefined) return totals[key] as T;
+  return undefined;
+}
+
+/** Accepts `[{number, count}]` or `{"1": 3}` / `{"1": {count, overdue}}`. */
+function stageCounts(raw: Raw): StageCount[] {
+  const source = pick<unknown>(raw, "stages", "per_stage", "by_stage", "stage_counts");
+  const map = new Map<number, { count: number; overdue: number; title?: string }>();
+  if (Array.isArray(source)) {
+    for (const row of source as Raw[]) {
+      const n = num(row.number, row.stage, row.stage_number, row.current_stage);
+      map.set(n, { count: num(row.count, row.total), overdue: num(row.overdue, row.overdue_count), title: row.title as string | undefined });
+    }
+  } else if (source && typeof source === "object") {
+    for (const [key, value] of Object.entries(source as Raw)) {
+      const n = Number(key);
+      if (value && typeof value === "object") {
+        const v = value as Raw;
+        map.set(n, { count: num(v.count, v.total), overdue: num(v.overdue), title: v.title as string | undefined });
+      } else map.set(n, { count: num(value), overdue: 0 });
+    }
+  }
+  return STAGES.map((def) => {
+    const found = map.get(def.number);
+    return { number: def.number, title: found?.title || def.title, count: found?.count ?? 0, overdue: found?.overdue ?? 0 };
+  });
+}
 
 export default function DashboardPage() {
-  const dashboard = useApi<AdminDashboard & AdminDashboardV3>("/dashboard/admin");
-  const map = useApi<HouseholdMapPoint[]>("/households/map");
-  const overview = useApi<OverviewStats>("/stats/overview");
-  const data = dashboard.data;
-  // Same 30 days as the tile: red only above the /stats “Yuqori o‘lim” threshold (no alarm fatigue).
-  const deathTone = mortalityTone(overview.data?.kpis.mortality_pct.value);
-  const today = data?.production_14d.at(-1);
-  // The API lists at most 10 households; the total comes from the counters
-  // (reports_today counts active households only, like households_active).
-  const withoutReport = data ? Math.max(data.households_active - data.reports_today, 0) : 0;
-  const notListed = data ? Math.max(withoutReport - data.households_without_report_today.length, 0) : 0;
-  // Today's bar is a day in progress (some households report in the evening).
-  const partialToday =
-    data && today && today.date === todayIso()
-      ? `bugun, ${formatNumber(data.reports_today)} / ${formatNumber(data.households_active)} hisobot`
-      : undefined;
-
+  const resource = useApi<Raw>("/dashboard");
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Boshqaruv paneli" description={`Bugun: ${formatDate(todayIso())}`} />
-
-      {data && dashboard.error && (
-        <Card className="overflow-hidden">
-          <StaleDataError error={dashboard.error} onRetry={dashboard.reload} className="border-b-0" />
-        </Card>
-      )}
-      {!data && dashboard.error ? (
-        <Card>
-          <ErrorState error={dashboard.error} onRetry={dashboard.reload} />
-        </Card>
-      ) : !data ? (
-        <>
-          <StatsSkeleton count={8} />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Skeleton className="h-72 rounded-xl" />
-            <Skeleton className="h-72 rounded-xl" />
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            <StatCard
-              label="Faol xonadonlar"
-              icon={House}
-              value={formatNumber(data.households_active)}
-              hint={`jami ${formatNumber(data.households_total)} · nofaol ${formatNumber(
-                data.households_total - data.households_active,
-              )}`}
-            />
-            <StatCard
-              label="Jami parranda"
-              icon={Bird}
-              value={formatNumber(data.birds_total ?? data.birds_in_households + data.birds_in_center)}
-              hint={`xonadonlarda ${formatNumber(data.birds_in_households)} · markazda ${formatNumber(data.birds_in_center)}`}
-            />
-            <StatCard label="30 kunda tarqatildi" icon={Truck} value={formatNumber(data.distributed_30d)} />
-            <StatCard
-              label="30 kunda nobud (jami)"
-              icon={Activity}
-              tone={deathTone}
-              value={formatNumber(data.deaths_30d)}
-              hint={`xonadonlarda ${formatNumber(data.deaths_30d_households)} · markazda ${formatNumber(
-                data.deaths_30d_center,
-              )}`}
-            />
-            <Link
-              href="/warehouse"
-              className="rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              aria-label="Ombor qoldig‘i — ombor sahifasi"
-            >
-              <StatCard
-                label="Ombor qoldig‘i"
-                icon={Package}
-                tone={data.warehouse_summary && data.warehouse_summary.out_of_stock + data.warehouse_summary.low_stock > 0 ? "warning" : "default"}
-                value={`${formatNumber(data.feed_stock_kg, 1)} kg yem`}
-                hint={
-                  data.warehouse_summary
-                    ? `${formatNumber(data.warehouse_summary.active_products)} mahsulot · kam ${formatNumber(
-                        data.warehouse_summary.low_stock,
-                      )} · tugagan ${formatNumber(data.warehouse_summary.out_of_stock)}`
-                    : undefined
-                }
-              />
-            </Link>
-            <StatCard
-              label="Bugungi go‘sht"
-              icon={Beef}
-              value={`${formatNumber(data.meat_today ?? 0, 1)} kg`}
-              hint="bugun kiritilgan hisobotlar bo‘yicha"
-            />
-            <StatCard
-              label="Bugungi yem sarfi"
-              icon={Wheat}
-              value={`${formatNumber(data.feed_used_today, 1)} kg`}
-              hint="bugun kiritilgan hisobotlar bo‘yicha"
-            />
-            <StatCard
-              label="Bugungi hisobotlar"
-              icon={ClipboardList}
-              value={`${formatNumber(data.reports_today)} / ${formatNumber(data.households_active)}`}
-              hint="faol xonadonlardan"
-            />
-          </div>
-
-          <OperationsRow data={data} />
-
-          <Suspense fallback={<PeriodSectionSkeleton />}>
-            <DashboardPeriodSection />
-          </Suspense>
-
-          {(data.problem_households || data.expiring_lots) && (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <ProblemHouseholdsCard data={data} />
-              <DashboardExpiringLots data={data} />
-            </div>
-          )}
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader title="Kunlik ishlab chiqarish" description="So‘nggi 14 kun" />
-              <CardBody className="grid gap-8 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                <MiniBarChart
-                  title="Go‘sht"
-                  unit="kg"
-                  data={data.production_14d.map((item) => ({ date: item.date, value: item.meat_kg }))}
-                  digits={1}
-                  partialLast={partialToday}
-                />
-                <MiniBarChart
-                  title="Yem sarfi"
-                  unit="kg"
-                  data={data.production_14d.map((item) => ({ date: item.date, value: item.feed_kg }))}
-                  digits={1}
-                  partialLast={partialToday}
-                />
-              </CardBody>
-            </Card>
-
-            <Card className="flex flex-col overflow-hidden">
-              <CardHeader
-                title="Xonadonlar xaritasi"
-                description={map.data ? `${formatNumber(map.data.length)} ta xonadon belgilangan` : undefined}
-                actions={
-                  <LinkButton href="/map" size="sm">
-                    To‘liq xarita
-                  </LinkButton>
-                }
-              />
-              <div className="relative mt-4 min-h-80 flex-1 border-t border-line">
-                {map.error && !map.data ? (
-                  <ErrorState error={map.error} onRetry={map.reload} />
-                ) : (
-                  <div className="absolute inset-0">
-                    <MapView points={(map.data ?? []).map(toMapPoint)} className="size-full" interactive={false} />
-                  </div>
-                )}
+    <>
+      <PageHeader
+        title="Boshqaruv paneli"
+        actions={
+          <Button variant="secondary" size="sm" onClick={resource.reload} loading={resource.loading} icon={<RefreshCw className="size-4" aria-hidden />}>
+            Yangilash
+          </Button>
+        }
+      />
+      <Loadable data={resource.data} error={resource.error} reload={resource.reload}>
+        {(raw) => {
+          const stages = stageCounts(raw);
+          const inProgress = num(pick(raw, "in_progress", "in_progress_count", "active"), stages.reduce((sum, s) => sum + s.count, 0));
+          const overdue = num(pick(raw, "overdue", "overdue_count", "overdue_total"));
+          const done = num(pick(raw, "done", "done_count", "done_total"));
+          const rejected = num(pick(raw, "rejected", "rejected_count", "rejected_total"));
+          const lowStock = pick<Product[]>(raw, "low_stock", "low_stock_products") ?? [];
+          const events = pick<DashEvent[]>(raw, "events", "latest_events", "recent_events") ?? [];
+          const max = Math.max(1, ...stages.map((s) => s.count));
+          return (
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <Stat label="Jarayonda" value={fmtNumber(inProgress)} />
+                <Stat label="Muddati o‘tgan" value={fmtNumber(overdue)} tone={overdue ? "red" : undefined} />
+                <Stat label="Yakunlangan" value={fmtNumber(done)} tone="green" />
+                <Stat label="Rad etilgan" value={fmtNumber(rejected)} />
               </div>
-            </Card>
-          </div>
 
-          {data.production_12m && data.production_12m.length > 0 && <MonthlyProductionCard months={data.production_12m} />}
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader
-                title="Bugun hisobot bermaganlar"
-                description="Faol xonadonlar"
-                actions={
-                  withoutReport > 0 ? <Badge tone="warning">{formatNumber(withoutReport)}</Badge> : undefined
-                }
-              />
-              {data.households_without_report_today.length === 0 ? (
-                <EmptyState icon={ClipboardList} title="Barcha xonadonlar hisobot topshirgan" />
-              ) : (
-                <ul className="mt-3 divide-y divide-line border-t border-line">
-                  {data.households_without_report_today.map((household) => (
-                    <li key={household.id}>
-                      <Link
-                        href={`/households/${household.id}`}
-                        className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-6"
-                      >
-                        <span className="min-w-0 truncate font-medium text-ink">{household.name}</span>
-                        <span className="shrink-0 tabular-nums text-muted">{household.code}</span>
+              <Card>
+                <h2 className="mb-3 font-semibold">Bosqichlar bo‘yicha</h2>
+                <ul className="flex flex-col gap-2">
+                  {stages.map((s) => (
+                    <li key={s.number}>
+                      <Link href={`/cases?stage=${s.number}`} className="block rounded-lg px-1 py-0.5 hover:bg-subtle">
+                        <div className="flex items-baseline justify-between gap-2 text-sm">
+                          <span className="truncate">
+                            {s.number}. {s.title}
+                          </span>
+                          <span className="shrink-0 tabular-nums">
+                            <b>{s.count}</b>
+                            {s.overdue > 0 && <span className="ml-1.5 font-semibold text-danger">({s.overdue} kechikkan)</span>}
+                          </span>
+                        </div>
+                        <div className="mt-1 h-2 overflow-hidden rounded-full bg-subtle">
+                          <div className={cn("h-full rounded-full", s.overdue ? "bg-danger" : "bg-accent")} style={{ width: `${(s.count / max) * 100}%` }} />
+                        </div>
                       </Link>
                     </li>
                   ))}
-                  {notListed > 0 && (
-                    <li className="px-4 py-3 text-sm text-muted sm:px-6">
-                      va yana {formatNumber(notListed)} ta xonadon hisobot bermagan
-                    </li>
+                </ul>
+              </Card>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card>
+                  <h2 className="mb-3 font-semibold">Kam qolgan mahsulotlar</h2>
+                  {lowStock.length === 0 ? (
+                    <p className="text-sm text-muted">Hammasi yetarli.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1.5 text-sm">
+                      {lowStock.map((p) => (
+                        <li key={p.id} className="flex justify-between gap-3">
+                          <span className="min-w-0 truncate">{p.name}</span>
+                          <span className="shrink-0 tabular-nums font-semibold text-danger">
+                            {fmtNumber(p.balance)} {p.unit}
+                            {p.min_stock !== undefined && <span className="font-normal text-muted"> / min {fmtNumber(p.min_stock)}</span>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                </ul>
-              )}
-            </Card>
-
-            <Card>
-              <CardHeader
-                title="Kam qolgan mahsulotlar"
-                description="Qoldig‘i minimal zaxiradan oshmagan"
-                actions={
-                  <LinkButton href="/warehouse" size="sm">
-                    Ombor
-                  </LinkButton>
-                }
-              />
-              {data.low_stock.length === 0 ? (
-                <EmptyState icon={Warehouse} title="Barcha mahsulotlar yetarli" />
-              ) : (
-                <ul className="mt-3 divide-y divide-line border-t border-line">
-                  {data.low_stock.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm sm:px-6">
-                      <span className="min-w-0 truncate font-medium text-ink">{item.name}</span>
-                      <span className="shrink-0 tabular-nums">
-                        <span className="font-medium text-danger">
-                          {formatNumber(item.balance)} {item.unit}
-                        </span>
-                        <span className="text-muted">
-                          {" "}
-                          / min {formatNumber(item.min_stock)}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader
-              title="So‘nggi harakatlar"
-              actions={
-                <LinkButton href="/batches" size="sm">
-                  Partiyalar
-                </LinkButton>
-              }
-            />
-            <div className="mt-3 border-t border-line">
-              {data.recent_movements.length === 0 ? (
-                <EmptyState icon={Bird} title="Hali harakatlar yo‘q" />
-              ) : (
-                <DataTable
-                  caption="So‘nggi parranda harakatlari"
-                  rows={data.recent_movements}
-                  columns={movementColumns()}
-                  rowKey={(row) => row.id}
-                />
-              )}
+                </Card>
+                <Card>
+                  <h2 className="mb-3 font-semibold">So‘nggi harakatlar</h2>
+                  {events.length === 0 ? (
+                    <p className="text-sm text-muted">Hali harakat yo‘q.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-2 text-sm">
+                      {events.map((e, index) => {
+                        const caseId = e.case_id ?? (e.case && typeof e.case === "object" ? e.case.id : typeof e.case === "number" ? e.case : undefined);
+                        const caseCode = e.case_code ?? (e.case && typeof e.case === "object" ? e.case.code : undefined);
+                        return (
+                        <li key={index} className="border-b border-line pb-2 last:border-0 last:pb-0">
+                          <p>
+                            {caseId ? (
+                              <Link href={`/cases/${caseId}`} className="font-medium text-accent">
+                                {caseCode ?? `#${caseId}`}
+                              </Link>
+                            ) : (
+                              <span className="font-medium">{caseCode}</span>
+                            )}
+                            {e.stage_number ? ` · ${e.stage_number}-bosqich` : ""} · {e.action_display || ACTIONS[e.action] || e.action}
+                          </p>
+                          <p className="text-xs text-muted">
+                            {personName(e.actor, e.actor_name)} · {fmtDateTime(e.created_at)}
+                          </p>
+                          {e.note && <p className="text-xs">«{e.note}»</p>}
+                        </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </Card>
+              </div>
             </div>
-          </Card>
-        </>
-      )}
-    </div>
+          );
+        }}
+      </Loadable>
+    </>
   );
 }

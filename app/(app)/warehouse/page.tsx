@@ -1,465 +1,366 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowDownToLine, ArrowUpFromLine, ClipboardCheck, Package, PackagePlus, Pencil, Power, Trash2 } from "lucide-react";
-import { api } from "@/lib/api";
-import { CATEGORY_LABELS, entries, formatNumber, STOCK_TYPE_LABELS } from "@/lib/format";
-import { useApi, useDebounced, usePagedApi } from "@/lib/use-api";
-import type { Product, StockTransaction, StockType, WarehouseStats, WarehouseStatsItem } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
-import { Button, IconButton, LinkButton } from "@/components/ui/button";
-import { Card, CardHeader } from "@/components/ui/card";
-import { useConfirm } from "@/components/ui/confirm";
-import { DataTable, type Column } from "@/components/ui/data-table";
-import { EmptyState } from "@/components/ui/empty-state";
-import { ErrorState, StaleDataError } from "@/components/ui/error-state";
-import { Input, Select } from "@/components/ui/field";
-import { PageHeader } from "@/components/ui/page-header";
-import { Pagination } from "@/components/ui/pagination";
-import { SearchInput } from "@/components/ui/search-input";
-import { TableSkeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/toast";
-import { useProductOptions } from "@/features/options";
-import { ProductModal } from "@/features/stock/product-modal";
-import { StockModal } from "@/features/stock/stock-modal";
-import { CenterBirdsCard } from "@/features/stock/center-birds-card";
-import { ExpiringLotsCard, ExpiryBadge, useSoonDays } from "@/features/stock/lots";
-import { transactionColumns } from "@/features/stock/transaction-columns";
-import { useDeleteProduct } from "@/features/stock/use-delete-product";
-import { coverText, coverView, WarehouseHeaderStats } from "@/features/stats/warehouse-stats";
+import { useState, type FormEvent } from "react";
+import { ArrowDownToLine, ArrowUpFromLine, Package as PackageIcon, Pencil, Plus, Search } from "lucide-react";
+import { Modal } from "@/components/modal";
+import { useToast } from "@/components/toast";
+import { Alert, Badge, Button, Card, Empty, Field, IconButton, Input, Loadable, PageHeader, Select } from "@/components/ui";
+import { api, ApiError, errorMessage, listOf } from "@/lib/api";
+import { cn } from "@/lib/cn";
+import { fmtDateTime, fmtMoney, fmtNumber, personName } from "@/lib/format";
+import type { Paged, Product, StockMove } from "@/lib/types";
+import { useApi, useDebounced } from "@/lib/use-api";
 
-const PAGE_SIZE = 50;
-const HISTORY_PAGE_SIZE = 20;
+const UNITS = ["kg", "dona", "qop", "m", "m²", "litr"];
+const CATEGORIES: Record<string, string> = {
+  material: "Qurilish materiali",
+  jihoz: "Jihoz",
+  yem: "Yem",
+  dori: "Veterinariya dorisi",
+  boshqa: "Boshqa",
+};
 
-type Dialog =
-  | { kind: "create" }
-  | { kind: "edit"; product: Product }
-  | { kind: "stock"; type: StockType; product?: Product }
-  | null;
-
-function productColumns(
-  cover: ReadonlyMap<number, WarehouseStatsItem>,
-  generatedAt: string,
-  soonDays: number,
-): Column<Product>[] {
-  return [
-    {
-      key: "name",
-      header: "Mahsulot",
-      primary: true,
-      cell: (row) => (
-        <span className="flex flex-col">
-          <span className="flex flex-wrap items-center gap-2 font-medium">
-            {row.name}
-            {!row.is_active && <Badge>Nofaol</Badge>}
-            <ExpiryBadge date={row.nearest_expiry} soonDays={soonDays} />
-          </span>
-          <span className="text-xs font-normal text-muted">{row.category_display}</span>
-        </span>
-      ),
-    },
-    ...BASE_COLUMNS,
-    {
-      key: "price",
-      header: "Narx",
-      align: "right",
-      hideOnMobile: true,
-      cell: (row) =>
-        row.price === null || row.price === undefined ? (
-          <span className="text-muted">—</span>
-        ) : (
-          <span className="text-muted">{formatNumber(Number(row.price))} so‘m</span>
-        ),
-    },
-    {
-      key: "reserved",
-      header: "Zaxirada",
-      align: "right",
-      hideOnMobile: true,
-      cell: (row) =>
-        row.reserved > 0 ? (
-          <span className="text-warning-ink" title="Faol logistika topshiriqlari uchun zaxiralangan">
-            {formatNumber(row.reserved)} {row.unit}
-          </span>
-        ) : (
-          <span className="text-muted">—</span>
-        ),
-    },
-    {
-      key: "available",
-      header: "Bo‘sh",
-      align: "right",
-      cell: (row) => (
-        <span className={row.available <= 0 ? "font-medium text-danger" : "font-medium"}>
-          {formatNumber(row.available)} {row.unit}
-        </span>
-      ),
-    },
-    {
-      key: "cover",
-      header: "Yetadi",
-      align: "right",
-      cell: (row) => {
-        const item = cover.get(row.id);
-        if (!item || item.days_of_cover === null) return <span className="text-muted">—</span>;
-        const view = coverView(item.days_of_cover, item.stockout_date, generatedAt);
-        return (
-          <span
-            className={view.tone === "default" ? undefined : "font-medium text-warning-ink"}
-            title={`Ombordan 30 kunlik o‘rtacha chiqim bo‘yicha · ${view.sub}`}
-          >
-            {coverText(view)}
-          </span>
-        );
-      },
-    },
-  ];
+function isLow(p: Product): boolean {
+  if (p.is_low !== undefined) return p.is_low;
+  return p.min_stock !== undefined && p.min_stock !== null && Number(p.balance) <= Number(p.min_stock);
 }
 
-const BASE_COLUMNS: Column<Product>[] = [
-  {
-    key: "balance",
-    header: "Qoldiq",
-    align: "right",
-    cell: (row) => (
-      <span className="inline-flex items-center gap-2">
-        {row.is_low && <Badge tone="danger">Kam</Badge>}
-        <span className={row.is_low ? "font-semibold text-danger" : "font-semibold"}>
-          {formatNumber(row.balance)} {row.unit}
-        </span>
-      </span>
-    ),
-  },
-  {
-    key: "min",
-    header: "Minimal zaxira",
-    align: "right",
-    hideOnMobile: true,
-    cell: (row) => (
-      <span className="text-muted">
-        {formatNumber(row.min_stock)} {row.unit}
-      </span>
-    ),
-  },
-];
-
 export default function WarehousePage() {
-  const confirm = useConfirm();
-  const toast = useToast();
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
-  const [status, setStatus] = useState("true");
-  const [lowOnly, setLowOnly] = useState(false);
-  const [dialog, setDialog] = useState<Dialog>(null);
-  const debouncedSearch = useDebounced(search.trim());
-  const stats = useApi<WarehouseStats>("/warehouse/stats");
-  const cover = new Map((stats.data?.items ?? []).map((item) => [item.id, item]));
-  const soonDays = useSoonDays();
-
-  const products = usePagedApi<Product>(
-    "/products",
-    {
-      search: debouncedSearch,
-      category,
-      is_active: status,
-      low: lowOnly ? 1 : undefined,
-    },
-    PAGE_SIZE,
-  );
-  const { page, setPage } = products;
-  const data = products.data;
-  const filtered = Boolean(debouncedSearch || category || lowOnly || status !== "true");
-
-  const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
-    setter(value);
-    setPage(1);
-  };
-
-  const toggleActive = (product: Product) => {
-    const activate = !product.is_active;
-    void confirm({
-      title: activate ? "Mahsulotni faollashtirish" : "Mahsulotni nofaol qilish",
-      confirmLabel: activate ? "Faollashtirish" : "Nofaol qilish",
-      tone: activate ? "primary" : "danger",
-      message: activate ? (
-        <p>
-          <strong>{product.name}</strong> bilan yana kirim va chiqim qilish mumkin bo‘ladi.
-        </p>
-      ) : (
-        <p>
-          <strong>{product.name}</strong> bilan kirim va chiqim qilib bo‘lmaydi. Qoldiq va tarix saqlanib qoladi.
-        </p>
-      ),
-      onConfirm: async () => {
-        await api.patch<Product>(`/products/${product.id}`, { is_active: activate });
-        toast.success(activate ? "Mahsulot faollashtirildi" : "Mahsulot nofaol qilindi");
-      },
-    });
-  };
-
-  const deleteProduct = useDeleteProduct();
-
-  const close = () => setDialog(null);
+  const [tab, setTab] = useState<"stock" | "moves">("stock");
+  const [kirim, setKirim] = useState<Product | true | null>(null);
+  const [editing, setEditing] = useState<Product | true | null>(null);
+  const products = useApi<Paged<Product>>("/products");
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
       <PageHeader
         title="Ombor"
-        description="Yem, veterinariya preparatlari, vaksinalar va jihozlar"
         actions={
           <>
-            <LinkButton href="/warehouse/inventory" icon={<ClipboardCheck className="size-4" aria-hidden />}>
-              Inventarizatsiya
-            </LinkButton>
-            <Button
-              variant="secondary"
-              icon={<ArrowDownToLine className="size-4" aria-hidden />}
-              onClick={() => setDialog({ kind: "stock", type: "IN" })}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setEditing(true)} icon={<Plus className="size-4" aria-hidden />}>
+              Mahsulot
+            </Button>
+            <Button size="sm" onClick={() => setKirim(true)} icon={<ArrowDownToLine className="size-4" aria-hidden />}>
               Kirim
-            </Button>
-            <Button
-              variant="secondary"
-              icon={<ArrowUpFromLine className="size-4" aria-hidden />}
-              onClick={() => setDialog({ kind: "stock", type: "OUT" })}
-            >
-              Chiqim
-            </Button>
-            <Button icon={<PackagePlus className="size-4" aria-hidden />} onClick={() => setDialog({ kind: "create" })}>
-              Yangi mahsulot
             </Button>
           </>
         }
       />
+      <div className="mb-4 inline-flex rounded-xl border border-line bg-surface p-1">
+        {(
+          [
+            ["stock", "Qoldiqlar"],
+            ["moves", "Harakatlar tarixi"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={cn("h-9 rounded-lg px-4 text-sm font-medium", tab === key ? "bg-primary text-white" : "text-muted hover:text-ink")}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      <WarehouseHeaderStats stats={stats} />
+      {tab === "stock" ? (
+        <Loadable data={products.data} error={products.error} reload={products.reload}>
+          {(data) => <ProductList products={listOf(data)} onKirim={setKirim} onEdit={setEditing} />}
+        </Loadable>
+      ) : (
+        <MovesList />
+      )}
 
-      <ExpiringLotsCard />
+      {kirim && <KirimModal products={listOf(products.data)} initial={kirim === true ? null : kirim} onClose={() => setKirim(null)} />}
+      {editing && <ProductModal product={editing === true ? null : editing} onClose={() => setEditing(null)} />}
+    </>
+  );
+}
 
-      <Card>
-        <div className="grid gap-3 border-b border-line px-4 py-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1fr_200px_160px_auto]">
-          <SearchInput
-            id="products-search"
-            label="Qidirish"
-            placeholder="Mahsulot nomi"
-            value={search}
-            onChange={resetPage(setSearch)}
-          />
-          <div>
-            <label htmlFor="products-category" className="sr-only">
-              Toifa
-            </label>
-            <Select id="products-category" value={category} onChange={(event) => resetPage(setCategory)(event.target.value)}>
-              <option value="">Barcha toifalar</option>
-              {entries(CATEGORY_LABELS).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label htmlFor="products-status" className="sr-only">
-              Holati
-            </label>
-            <Select id="products-status" value={status} onChange={(event) => resetPage(setStatus)(event.target.value)}>
-              <option value="true">Faol</option>
-              <option value="false">Nofaol</option>
-              <option value="">Barchasi</option>
-            </Select>
-          </div>
-          <label className="flex h-10 cursor-pointer items-center gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={lowOnly}
-              onChange={(event) => resetPage(setLowOnly)(event.target.checked)}
-              className="size-4 rounded border-line accent-accent"
-            />
-            Faqat kam qolganlar
-          </label>
+function ProductList({ products, onKirim, onEdit }: { products: Product[]; onKirim: (p: Product) => void; onEdit: (p: Product) => void }) {
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const q = search.trim().toLowerCase();
+  const rows = products.filter((p) => (!q || p.name.toLowerCase().includes(q)) && (!category || p.category === category));
+  const low = products.filter(isLow).length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {low > 0 && <Alert tone="warning">Kam qolgan mahsulotlar: {low} ta</Alert>}
+      <div className="grid gap-2 sm:grid-cols-[1fr_220px]">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted" aria-hidden />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Mahsulot nomi…" className="pl-9" aria-label="Qidirish" />
         </div>
-
-        <StaleDataError error={data ? products.error : null} onRetry={products.reload} />
-        {!data && products.error ? (
-          <ErrorState error={products.error} onRetry={products.reload} />
-        ) : !data ? (
-          <TableSkeleton />
-        ) : data.results.length === 0 ? (
-          <EmptyState
-            icon={Package}
-            title={filtered ? "Hech narsa topilmadi" : "Hali mahsulotlar yo‘q"}
-            description={filtered ? "Filtrlarni o‘zgartirib ko‘ring." : "Birinchi mahsulotni qo‘shing, so‘ng kirim qiling."}
-          />
-        ) : (
-          <>
-            <DataTable
-              caption="Ombordagi mahsulotlar"
-              rows={data.results}
-              columns={productColumns(cover, stats.data?.generated_at ?? "", soonDays)}
-              rowKey={(row) => row.id}
-              rowHref={(row) => `/warehouse/${row.id}`}
-              stale={products.loading}
-              actions={(row) => (
-                <>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={!row.is_active}
-                    onClick={() => setDialog({ kind: "stock", type: "IN", product: row })}
-                    aria-label={`${row.name}: kirim`}
-                  >
-                    Kirim
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={!row.is_active || row.available <= 0}
-                    onClick={() => setDialog({ kind: "stock", type: "OUT", product: row })}
-                    aria-label={`${row.name}: chiqim`}
-                  >
-                    Chiqim
-                  </Button>
-                  <IconButton label={`${row.name}: tahrirlash`} onClick={() => setDialog({ kind: "edit", product: row })}>
-                    <Pencil className="size-4" aria-hidden />
-                  </IconButton>
-                  <IconButton
-                    label={row.is_active ? `${row.name}: nofaol qilish` : `${row.name}: faollashtirish`}
-                    tone={row.is_active ? "quiet-danger" : "default"}
-                    onClick={() => toggleActive(row)}
-                  >
-                    <Power className="size-4" aria-hidden />
-                  </IconButton>
-                  <IconButton label={`${row.name}: o‘chirish`} tone="quiet-danger" onClick={() => deleteProduct(row)}>
-                    <Trash2 className="size-4" aria-hidden />
-                  </IconButton>
-                </>
-              )}
-            />
-            <Pagination page={page} count={data.count} pageSize={PAGE_SIZE} onPageChange={setPage} disabled={products.loading} />
-          </>
-        )}
-      </Card>
-
-      <CenterBirdsCard />
-
-      <TransactionsHistory />
-
-      {dialog?.kind === "create" && <ProductModal onClose={close} onDone={close} />}
-      {dialog?.kind === "edit" && <ProductModal product={dialog.product} onClose={close} onDone={close} />}
-      {dialog?.kind === "stock" && (
-        <StockModal type={dialog.type} product={dialog.product} onClose={close} onDone={close} />
+        <Select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Turkum">
+          <option value="">Barcha turkumlar</option>
+          {Object.entries(CATEGORIES).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {!rows.length ? (
+        <Empty title="Mahsulot topilmadi" icon={<PackageIcon className="size-8" aria-hidden />} />
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {rows.map((p) => (
+            <li key={p.id}>
+              <Card className={cn("flex items-center gap-3 p-3", isLow(p) && "border-danger/40")}>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">
+                    {p.name} {p.is_demo && <Badge>DEMO</Badge>}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {p.category_display || CATEGORIES[p.category] || p.category}
+                    {p.price ? ` · ${fmtMoney(p.price)}/${p.unit}` : ""}
+                    {p.min_stock !== undefined && p.min_stock !== null ? ` · min ${fmtNumber(p.min_stock)}` : ""}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className={cn("text-base font-semibold tabular-nums", isLow(p) ? "text-danger" : "text-ink")}>{fmtNumber(p.balance)}</p>
+                  <p className="text-xs text-muted">{p.unit}</p>
+                </div>
+                <IconButton label="Kirim" onClick={() => onKirim(p)} className="border border-line text-accent">
+                  <ArrowDownToLine className="size-4" aria-hidden />
+                </IconButton>
+                <IconButton label="Tahrirlash" onClick={() => onEdit(p)}>
+                  <Pencil className="size-4" aria-hidden />
+                </IconButton>
+              </Card>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
 }
 
-function TransactionsHistory() {
+function MovesList() {
   const [type, setType] = useState("");
-  const [product, setProduct] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const productOptions = useProductOptions({ activeOnly: false });
-  const transactions = usePagedApi<StockTransaction>(
-    "/stock-transactions",
-    {
-      type,
-      product,
-      date_from: dateFrom,
-      date_to: dateTo,
-    },
-    HISTORY_PAGE_SIZE,
+  const [search, setSearch] = useState("");
+  const q = useDebounced(search.trim()).toLowerCase();
+  const moves = useApi<Paged<StockMove>>("/stock/moves", { type, limit: 500 });
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-2 sm:grid-cols-[1fr_180px]">
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Mahsulot yoki xonadon kodi…" aria-label="Qidirish" />
+        <Select value={type} onChange={(e) => setType(e.target.value)} aria-label="Turi">
+          <option value="">Kirim va chiqim</option>
+          <option value="IN">Kirim</option>
+          <option value="OUT">Chiqim</option>
+        </Select>
+      </div>
+      <Loadable data={moves.data} error={moves.error} reload={moves.reload}>
+        {(data) => {
+          const rows = listOf(data).filter((m) => {
+            if (!q) return true;
+            const product = m.product_name ?? (m.product && typeof m.product === "object" ? m.product.name : "");
+            const code = m.case_code ?? (m.case && typeof m.case === "object" ? m.case.code : "");
+            return [product, code, m.note].some((v) => (v ?? "").toLowerCase().includes(q));
+          });
+          if (!rows.length) return <Empty title="Harakatlar yo‘q" />;
+          return (
+            <ul className="flex flex-col gap-2">
+              {rows.map((m) => {
+                const productName = m.product_name ?? (m.product && typeof m.product === "object" ? m.product.name : `#${m.product}`);
+                const unit = m.unit ?? (m.product && typeof m.product === "object" ? m.product.unit : "") ?? "";
+                const caseCode = m.case_code ?? (m.case && typeof m.case === "object" ? m.case.code : m.case ? `#${m.case}` : "");
+                return (
+                  <li key={m.id}>
+                    <Card className="flex items-center gap-3 p-3">
+                      <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", m.type === "IN" ? "bg-accent-soft text-accent" : "bg-warning-soft text-warning-ink")}>
+                        {m.type === "IN" ? <ArrowDownToLine className="size-4" aria-hidden /> : <ArrowUpFromLine className="size-4" aria-hidden />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{productName}</p>
+                        <p className="text-xs text-muted">
+                          {fmtDateTime(m.created_at)} · {personName(m.created_by, m.created_by_name)}
+                          {caseCode ? ` · ${caseCode}` : ""}
+                        </p>
+                        {m.note && <p className="truncate text-xs text-ink">{m.note}</p>}
+                      </div>
+                      <div className="text-right">
+                        <p className={cn("font-semibold tabular-nums", m.type === "IN" ? "text-accent" : "text-warning-ink")}>
+                          {m.type === "IN" ? "+" : "−"}
+                          {fmtNumber(m.qty)} {unit}
+                        </p>
+                        {m.balance_after !== undefined && <p className="text-xs text-muted">qoldiq {fmtNumber(m.balance_after)}</p>}
+                      </div>
+                    </Card>
+                  </li>
+                );
+              })}
+            </ul>
+          );
+        }}
+      </Loadable>
+    </div>
   );
-  const { page, setPage } = transactions;
-  const data = transactions.data;
-  const filtered = Boolean(type || product || dateFrom || dateTo);
+}
 
-  const update = (setter: (value: string) => void) => (value: string) => {
-    setter(value);
-    setPage(1);
+function KirimModal({ products, initial, onClose }: { products: Product[]; initial: Product | null; onClose: () => void }) {
+  const toast = useToast();
+  const [productId, setProductId] = useState(initial ? String(initial.id) : "");
+  const [qty, setQty] = useState("");
+  const [note, setNote] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const product = products.find((p) => String(p.id) === productId);
+
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const amount = Number(qty.replace(",", "."));
+    const next: Record<string, string> = {};
+    if (!productId) next.product_id = "Mahsulotni tanlang";
+    if (!qty || !Number.isFinite(amount) || amount <= 0) next.qty = "Musbat son kiriting";
+    setErrors(next);
+    if (Object.keys(next).length) return;
+    setPending(true);
+    setFormError(null);
+    try {
+      await api.post("/stock/in", { product_id: Number(productId), qty: amount, note: note.trim() });
+      toast.success(`Kirim qilindi: ${product?.name ?? ""} +${fmtNumber(amount)} ${product?.unit ?? ""}`);
+      onClose();
+    } catch (caught) {
+      if (caught instanceof ApiError) setErrors(caught.fields);
+      setFormError(errorMessage(caught));
+      setPending(false);
+    }
   };
 
   return (
-    <Card>
-      <CardHeader title="Operatsiyalar tarixi" description="Kirim va chiqimlar, eng yangilari birinchi" />
-      <div className="mt-4 grid gap-3 border-y border-line px-4 py-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
-        <div>
-          <label htmlFor="tx-type" className="mb-1.5 block text-[13px] text-muted">
-            Turi
-          </label>
-          <Select id="tx-type" value={type} onChange={(event) => update(setType)(event.target.value)}>
-            <option value="">Barchasi</option>
-            {entries(STOCK_TYPE_LABELS).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-            <option value="ADJUST_IN">Inventarizatsiya: ortiqcha</option>
-            <option value="ADJUST_OUT">Inventarizatsiya: kamomad</option>
-          </Select>
-        </div>
-        <div>
-          <label htmlFor="tx-product" className="mb-1.5 block text-[13px] text-muted">
-            Mahsulot
-          </label>
-          <Select id="tx-product" value={product} onChange={(event) => update(setProduct)(event.target.value)}>
-            <option value="">Barchasi</option>
-            {(productOptions.data?.results ?? []).map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div>
-          <label htmlFor="tx-from" className="mb-1.5 block text-[13px] text-muted">
-            Sanadan
-          </label>
-          <Input
-            id="tx-from"
-            type="date"
-            value={dateFrom}
-            max={dateTo || undefined}
-            onChange={(event) => update(setDateFrom)(event.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="tx-to" className="mb-1.5 block text-[13px] text-muted">
-            Sanagacha
-          </label>
-          <Input
-            id="tx-to"
-            type="date"
-            value={dateTo}
-            min={dateFrom || undefined}
-            onChange={(event) => update(setDateTo)(event.target.value)}
-          />
-        </div>
-      </div>
-      <StaleDataError error={data ? transactions.error : null} onRetry={transactions.reload} />
-      {!data && transactions.error ? (
-        <ErrorState error={transactions.error} onRetry={transactions.reload} />
-      ) : !data ? (
-        <TableSkeleton rows={4} />
-      ) : data.results.length === 0 ? (
-        <EmptyState icon={Package} title={filtered ? "Hech narsa topilmadi" : "Hali operatsiyalar yo‘q"} />
-      ) : (
+    <Modal
+      title="Kirim"
+      onClose={onClose}
+      onSubmit={onSubmit}
+      busy={pending}
+      footer={
         <>
-          <DataTable
-            caption="Ombor operatsiyalari"
-            rows={data.results}
-            columns={transactionColumns()}
-            rowKey={(row) => row.id}
-            stale={transactions.loading}
-          />
-          <Pagination
-            page={page}
-            count={data.count}
-            pageSize={HISTORY_PAGE_SIZE}
-            onPageChange={setPage}
-            disabled={transactions.loading}
-          />
+          <Button variant="secondary" onClick={onClose} disabled={pending}>
+            Bekor qilish
+          </Button>
+          <Button type="submit" loading={pending}>
+            Kirim qilish
+          </Button>
         </>
-      )}
-    </Card>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Field label="Mahsulot" htmlFor="k-product" required error={errors.product_id}>
+          <Select id="k-product" value={productId} onChange={(e) => setProductId(e.target.value)} invalid={!!errors.product_id}>
+            <option value="">— tanlang —</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({fmtNumber(p.balance)} {p.unit})
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={`Miqdori${product ? ` (${product.unit})` : ""}`} htmlFor="k-qty" required error={errors.qty}>
+          <Input id="k-qty" inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d.,]/g, ""))} invalid={!!errors.qty} />
+        </Field>
+        <Field label="Izoh" htmlFor="k-note" error={errors.note}>
+          <Input id="k-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Yetkazib beruvchi, hujjat raqami…" />
+        </Field>
+        {formError && <Alert>{formError}</Alert>}
+      </div>
+    </Modal>
+  );
+}
+
+function ProductModal({ product, onClose }: { product: Product | null; onClose: () => void }) {
+  const toast = useToast();
+  const [form, setForm] = useState({
+    name: product?.name ?? "",
+    unit: product?.unit ?? "dona",
+    category: product?.category ?? "material",
+    price: product?.price !== undefined && product?.price !== null ? String(product.price) : "",
+    min_stock: product?.min_stock !== undefined && product?.min_stock !== null ? String(product.min_stock) : "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const set = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!form.name.trim()) {
+      setErrors({ name: "Majburiy maydon" });
+      return;
+    }
+    setPending(true);
+    setFormError(null);
+    const body = {
+      name: form.name.trim(),
+      unit: form.unit,
+      category: form.category,
+      price: form.price ? Number(form.price.replace(",", ".")) : 0,
+      min_stock: form.min_stock ? Number(form.min_stock.replace(",", ".")) : 0,
+    };
+    try {
+      if (product) await api.patch(`/products/${product.id}`, body);
+      else await api.post("/products", body);
+      toast.success(product ? "Mahsulot saqlandi" : "Mahsulot qo‘shildi");
+      onClose();
+    } catch (caught) {
+      if (caught instanceof ApiError) setErrors(caught.fields);
+      setFormError(errorMessage(caught));
+      setPending(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={product ? "Mahsulotni tahrirlash" : "Yangi mahsulot"}
+      onClose={onClose}
+      onSubmit={onSubmit}
+      busy={pending}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={pending}>
+            Bekor qilish
+          </Button>
+          <Button type="submit" loading={pending}>
+            Saqlash
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Nomi" htmlFor="p-name" required error={errors.name} className="sm:col-span-2">
+          <Input id="p-name" value={form.name} onChange={(e) => set("name", e.target.value)} invalid={!!errors.name} />
+        </Field>
+        <Field label="Turkum" htmlFor="p-cat" error={errors.category}>
+          <Select id="p-cat" value={form.category} onChange={(e) => set("category", e.target.value)}>
+            {Object.entries(CATEGORIES).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="O‘lchov birligi" htmlFor="p-unit" error={errors.unit}>
+          <Select id="p-unit" value={form.unit} onChange={(e) => set("unit", e.target.value)}>
+            {UNITS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Narxi (so‘m)" htmlFor="p-price" error={errors.price}>
+          <Input id="p-price" inputMode="decimal" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.,]/g, ""))} />
+        </Field>
+        <Field label="Minimal qoldiq" htmlFor="p-min" error={errors.min_stock}>
+          <Input id="p-min" inputMode="decimal" value={form.min_stock} onChange={(e) => set("min_stock", e.target.value.replace(/[^\d.,]/g, ""))} />
+        </Field>
+        {!product && <p className="text-xs text-muted sm:col-span-2">Qoldiq faqat «Kirim» orqali o‘zgaradi.</p>}
+        {formError && <Alert className="sm:col-span-2">{formError}</Alert>}
+      </div>
+    </Modal>
   );
 }

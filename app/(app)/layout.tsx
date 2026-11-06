@@ -1,12 +1,7 @@
-import { Suspense, type ReactNode } from "react";
-import { AppShell } from "@/components/layout/app-shell";
-import { ShellSkeleton } from "@/components/layout/shell-states";
+import type { ReactNode } from "react";
+import { AppShell } from "@/components/shell";
 
-/** Authenticated area: role-aware navigation + route guard. */
+/** Authenticated area: role-based menu + route guard. */
 export default function AppLayout({ children }: { children: ReactNode }) {
-  return (
-    <Suspense fallback={<ShellSkeleton />}>
-      <AppShell>{children}</AppShell>
-    </Suspense>
-  );
+  return <AppShell>{children}</AppShell>;
 }

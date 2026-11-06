@@ -1,99 +1,91 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Eye, EyeOff, LoaderCircle, Send } from "lucide-react";
-import { api, toApiError } from "@/lib/api";
+import { AuthFrame } from "@/components/auth-frame";
+import { Alert, Button, Field, Input } from "@/components/ui";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { collect, required, useForm } from "@/lib/form";
-import { canAccess, homeFor, safeNextPath } from "@/lib/nav";
+import { canAccess, homeFor, safeNext } from "@/lib/roles";
 import { wasLoggedOut } from "@/lib/session";
 import { telegramUserLabel, useTelegram } from "@/lib/telegram";
 import type { AuthResponse } from "@/lib/types";
-import { AuthFrame } from "@/components/layout/auth-frame";
-import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
 
-type TelegramAttempt = { status: "pending" } | { status: "failed"; message: string };
-
-function telegramErrorMessage(error: ReturnType<typeof toApiError>): string {
-  if (error.status === 401) {
-    return "Telegram ma’lumotlari eskirgan yoki tasdiqlanmadi. Web Appni bot orqali qaytadan oching.";
+function telegramError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return "Telegram ma’lumotlari tasdiqlanmadi. Web Appni bot orqali qaytadan oching.";
+    if (error.status === 403 || error.status === 404)
+      return error.message || "Telegram akkauntingiz tizimga bog‘lanmagan. Botda /start bosib, login va parolni kiriting.";
   }
-  if (error.status === 403) {
-    return error.detail ?? "Telegram akkauntingiz tizimga bog‘lanmagan. Botda /start bosing.";
-  }
-  return error.message;
+  return errorMessage(error);
 }
 
 export function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const nextPath = safeNextPath(searchParams.get("next"));
+  const nextPath = safeNext(useSearchParams().get("next"));
   const { status, user, signIn } = useAuth();
   const telegram = useTelegram();
-  const [showPassword, setShowPassword] = useState(false);
-  const [tgAttempt, setTgAttempt] = useState<TelegramAttempt | null>(null);
-  const tgInFlight = useRef(false);
-  const form = useForm({ username: "", password: "" });
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tg, setTg] = useState<"idle" | "pending" | "failed">("idle");
+  const [tgError, setTgError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
-  // Signed in (by form, Telegram, or an existing session): leave the login page.
   useEffect(() => {
     if (status !== "authenticated" || !user) return;
     if (user.must_change_password) router.replace("/change-password");
-    else router.replace(nextPath && canAccess(user, nextPath) ? nextPath : homeFor(user.role));
+    else router.replace(nextPath && canAccess(user, nextPath) ? nextPath : homeFor(user));
   }, [status, user, nextPath, router]);
 
-  const telegramAvailable = telegram.loaded && telegram.initData !== "";
-  // Automatic only inside a Telegram client; in a plain browser the initData may
-  // come from someone else's link, so the visitor must choose it explicitly.
-  const autoTelegram =
-    telegramAvailable && telegram.insideTelegram && status === "anonymous" && tgAttempt === null && !wasLoggedOut();
-  const telegramAccount = telegramAvailable && !telegram.insideTelegram ? telegramUserLabel(telegram.initData) : null;
+  const tgAvailable = telegram.loaded && telegram.initData !== "";
+  // Automatic only inside a Telegram client; in a plain browser initData could come from someone else's link.
+  const autoTelegram = tgAvailable && telegram.insideTelegram && status === "anonymous" && tg === "idle" && !wasLoggedOut();
+  const tgAccount = tgAvailable && !telegram.insideTelegram ? telegramUserLabel(telegram.initData) : null;
 
   const loginWithTelegram = useCallback(() => {
-    if (tgInFlight.current) return;
-    tgInFlight.current = true;
+    if (inFlight.current) return;
+    inFlight.current = true;
     api
-      .post<AuthResponse>("/auth/telegram", { init_data: telegram.initData }, { auth: false })
-      .then(signIn, (caught: unknown) =>
-        setTgAttempt({ status: "failed", message: telegramErrorMessage(toApiError(caught)) }),
-      )
+      .post<AuthResponse>("/auth/telegram", { init_data: telegram.initData }, false)
+      .then(signIn, (caught: unknown) => {
+        setTg("failed");
+        setTgError(telegramError(caught));
+      })
       .finally(() => {
-        tgInFlight.current = false;
+        inFlight.current = false;
       });
   }, [telegram.initData, signIn]);
 
-  // Inside a Telegram client: log in automatically with the signed initData.
   useEffect(() => {
     if (autoTelegram) loginWithTelegram();
   }, [autoTelegram, loginWithTelegram]);
 
-  const retryTelegram = () => {
-    setTgAttempt({ status: "pending" });
-    loginWithTelegram();
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!username.trim() || !password) {
+      setError("Login va parolni kiriting.");
+      return;
+    }
+    setPending(true);
+    setError(null);
+    try {
+      signIn(await api.post<AuthResponse>("/auth/login", { username: username.trim(), password }, false));
+    } catch (caught) {
+      setError(errorMessage(caught));
+      setPending(false);
+    }
   };
 
-  const telegramBusy = autoTelegram || tgAttempt?.status === "pending";
-  const redirecting = status === "authenticated";
-
-  const onSubmit = form.handleSubmit(
-    (values) => collect([
-      ["username", required(values.username)],
-      ["password", required(values.password)],
-    ]),
-    (values) =>
-      api.post<AuthResponse>("/auth/login", { username: values.username.trim(), password: values.password }, { auth: false }),
-    (auth) => signIn(auth),
-  );
-
-  if (telegramBusy || redirecting) {
+  if (autoTelegram || tg === "pending" || status === "authenticated") {
     return (
       <AuthFrame title="Tizimga kirish">
         <div className="flex items-center gap-3 text-sm text-muted" role="status">
           <LoaderCircle className="size-4 animate-spin text-accent" aria-hidden />
-          {redirecting ? "Yo‘naltirilmoqda…" : "Telegram orqali kirilmoqda…"}
+          {status === "authenticated" ? "Yo‘naltirilmoqda…" : "Telegram orqali kirilmoqda…"}
         </div>
       </AuthFrame>
     );
@@ -101,46 +93,44 @@ export function LoginForm() {
 
   return (
     <AuthFrame title="Tizimga kirish" description="Login va parolingizni kiriting.">
-      <div className="flex flex-col gap-5">
-        {tgAttempt?.status === "failed" && <Alert tone="warning">{tgAttempt.message}</Alert>}
-
+      <div className="flex flex-col gap-4">
+        {tgError && <Alert tone="warning">{tgError}</Alert>}
         <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-          <Field label="Login" {...form.field("username")}>
-            <Input {...form.control("username")} autoComplete="username" autoCapitalize="none" spellCheck={false} />
+          <Field label="Login" htmlFor="username">
+            <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} />
           </Field>
-          <Field label="Parol" {...form.field("password")}>
+          <Field label="Parol" htmlFor="password">
             <div className="relative">
               <Input
-                {...form.control("password")}
-                type={showPassword ? "text" : "password"}
+                id="password"
+                type={show ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 className="pr-11"
               />
               <button
                 type="button"
-                onClick={() => setShowPassword((value) => !value)}
-                aria-label={showPassword ? "Parolni yashirish" : "Parolni ko‘rsatish"}
-                aria-pressed={showPassword}
-                className="absolute right-1 top-1 flex size-8 items-center justify-center rounded-md text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+                onClick={() => setShow((v) => !v)}
+                aria-label={show ? "Parolni yashirish" : "Parolni ko‘rsatish"}
+                className="absolute right-1 top-1 flex size-9 items-center justify-center rounded-lg text-muted hover:text-ink"
               >
-                {showPassword ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+                {show ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
               </button>
             </div>
           </Field>
-          {form.formError && <Alert>{form.formError}</Alert>}
-          <Button type="submit" loading={form.pending} className="mt-1 w-full">
+          {error && <Alert>{error}</Alert>}
+          <Button type="submit" loading={pending} className="w-full">
             Kirish
           </Button>
         </form>
-
-        {telegramAvailable && (
-          <Button
-            variant="secondary"
-            className="w-full"
-            onClick={retryTelegram}
-            icon={<Send className="size-4" aria-hidden />}
-          >
-            {telegramAccount ? `Telegram orqali kirish (${telegramAccount})` : "Telegram orqali kirish"}
+        {tgAvailable && (
+          <Button variant="secondary" className="w-full" onClick={() => {
+              setTg("pending");
+              setTgError(null);
+              loginWithTelegram();
+            }} icon={<Send className="size-4" aria-hidden />}>
+            {tgAccount ? `Telegram orqali kirish (${tgAccount})` : "Telegram orqali kirish"}
           </Button>
         )}
       </div>

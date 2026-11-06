@@ -95,7 +95,7 @@ export function initTelegram(): void {
       // Hex colours are accepted since Bot API 6.9; older clients only log a warning.
       if (webApp.isVersionAtLeast?.("6.9")) {
         webApp.setHeaderColor?.("#FFFFFF");
-        webApp.setBackgroundColor?.("#F4F6F2");
+        webApp.setBackgroundColor?.("#F3F5F2");
       }
     } catch {
       // Older Telegram clients may not support every method.

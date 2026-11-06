@@ -1,32 +1,13 @@
 import type { NextConfig } from "next";
 
-const backendUrl = (process.env.BACKEND_URL ?? "http://127.0.0.1:8000").replace(/\/+$/, "");
+const backendUrl = (process.env.BACKEND_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
-  // NEXT_DIST_DIR lets test builds go to a separate folder (e.g. .next-agent)
-  // so they never overwrite the build a running `next start` is serving.
-  distDir: process.env.NEXT_DIST_DIR || ".next",
-  // Docker: Next faqat kerakli fayllarni `.next/standalone` ga yig'adi (Dockerfile NEXT_OUTPUT=standalone beradi).
-  // Local `next start` uchun o'chiq qoladi.
+  // Docker builds with NEXT_OUTPUT=standalone; local `next start` keeps the default output.
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
-  experimental: {
-    agentFeedback: true,
-    // Uploads up to 10 MB (+ multipart overhead) must pass the /api proxy unchanged
-    // (API_CONTRACT_V3 §4.5; node_modules/next/dist/docs/.../proxyClientMaxBodySize.md, default 10MB).
-    proxyClientMaxBodySize: "11mb",
-  },
-  cacheComponents: true,
-  partialPrefetching: true,
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
-  },
-  // Only Telegram Web (web.telegram.org) may embed the app in a frame. The login page
-  // treats a framed page as "inside Telegram" (lib/telegram.ts), so no other site may frame it.
+  // Test builds may use another folder (NEXT_DIST_DIR=.next-agent) so a running build is not overwritten.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Only Telegram Web may frame the app.
   async headers() {
     return [
       {
@@ -35,15 +16,10 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  // The browser and the Telegram Web App only call relative /api/... paths;
-  // Next.js proxies them to Django (same origin: no CORS, one tunnel to :3000).
+  // The browser only calls relative /api/... paths. In production nginx sends /api to Django directly;
+  // this rewrite is the fallback (local dev, or the container without nginx).
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backendUrl}/api/:path*`,
-      },
-    ];
+    return [{ source: "/api/:path*", destination: `${backendUrl}/api/:path*` }];
   },
 };
 

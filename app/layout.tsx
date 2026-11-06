@@ -1,18 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans } from "next/font/google";
+import type { ReactNode } from "react";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
-const plexSans = IBM_Plex_Sans({
-  variable: "--font-plex",
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
 export const metadata: Metadata = {
-  title: "NNP — Parrandachilik boshqaruvi",
-  description: "Navobod naslli parranda qisqarmasi: xonadonlar, parranda partiyalari, ombor va kunlik hisobotlar.",
+  title: "NNP — Xonadonlar jarayoni",
+  description: "Navobod naslli parranda: xonadon bosqichlari, ombor va hisobotlar.",
   robots: { index: false, follow: false },
 };
 
@@ -20,12 +13,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#F4F6F2",
+  themeColor: "#12372A",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="uz" className={`${plexSans.variable} h-full antialiased`}>
+    <html lang="uz" className="h-full antialiased">
       <body className="min-h-full">
         <Providers>{children}</Providers>
       </body>

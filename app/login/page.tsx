@@ -1,6 +1,6 @@
 import { Suspense } from "react";
-import { AuthFrame } from "@/components/layout/auth-frame";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AuthFrame } from "@/components/auth-frame";
+import { Spinner } from "@/components/ui";
 import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
@@ -8,11 +8,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <AuthFrame title="Tizimga kirish">
-          <div className="flex flex-col gap-4" role="status" aria-label="Yuklanmoqda">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
+          <Spinner />
         </AuthFrame>
       }
     >
