@@ -11,6 +11,7 @@ import { effectiveRole } from "@/lib/roles";
 import { CASE_STATUS_LABELS, STAGES } from "@/lib/stages";
 import type { CaseSummary, Paged } from "@/lib/types";
 import { useApi, useDebounced } from "@/lib/use-api";
+import { SAMARQAND_DISTRICTS } from "@/lib/districts";
 
 export default function CasesPage() {
   return (
@@ -26,8 +27,11 @@ function CasesList() {
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [status, setStatus] = useState(params.get("status") ?? "");
   const [stage, setStage] = useState(params.get("stage") ?? "");
+  const [district, setDistrict] = useState(params.get("district") ?? "");
   const query = useDebounced(search.trim());
-  const resource = useApi<Paged<CaseSummary>>("/cases", { search: query, status, stage });
+  const resource = useApi<Paged<CaseSummary>>("/cases", { search: query, status, stage, district });
+  const role = effectiveRole(user);
+  const showMoney = ["ADMIN", "SUPERADMIN", "DIRECTOR", "ACCOUNTANT"].includes(role);
   const canCreate = effectiveRole(user) === "INSPECTOR"; // only the Inspector registers a household
   const count = resource.data && !Array.isArray(resource.data) ? resource.data.count : undefined;
 
@@ -44,11 +48,19 @@ function CasesList() {
           )
         }
       />
-      <div className="mb-4 grid gap-2 sm:grid-cols-[1fr_180px_220px]">
+      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_210px_170px_220px]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted" aria-hidden />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Kod, F.I.Sh., telefon…" className="pl-9" aria-label="Qidirish" />
         </div>
+        <Select value={district} onChange={(e) => setDistrict(e.target.value)} aria-label="Tuman yoki shahar">
+          <option value="">Barcha tumanlar</option>
+          {SAMARQAND_DISTRICTS.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </Select>
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Holat">
           <option value="">Barcha holatlar</option>
           {Object.entries(CASE_STATUS_LABELS).map(([value, label]) => (
@@ -73,7 +85,7 @@ function CasesList() {
           return (
             <div className="flex flex-col gap-3">
               {items.map((item) => (
-                <CaseCard key={item.id} item={item} />
+                <CaseCard key={item.id} item={item} showMoney={showMoney} />
               ))}
             </div>
           );

@@ -155,6 +155,22 @@ export interface CaseSummary {
   /** Some list serializers embed the current stage. */
   stage?: CaseStage | null;
   current?: CaseStage | null;
+  /** Key numbers for the list card (GET /api/cases). */
+  summary?: CaseListStats | null;
+}
+
+export interface CaseListStats {
+  birds_received: number | null;
+  birds: number | null;
+  delivered_at: string | null;
+  days_since_delivery: number | null;
+  growing_days: number;
+  feed: { unit: string; qty: number }[];
+  vet_visits: number;
+  total_cost: number;
+  revenue: number | null;
+  revenue_is_estimate: boolean;
+  profit: number | null;
 }
 
 /** A user brief `{id, full_name, role, role_display}`. */

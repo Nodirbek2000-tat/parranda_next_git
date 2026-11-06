@@ -6,11 +6,12 @@ import { ArrowLeft, Send } from "lucide-react";
 import { useConfirm } from "@/components/confirm";
 import { DocumentUpload, GpsButton, LivePhotos, type Coords, type UploadedDoc, type UploadedPhoto } from "@/components/media";
 import { useToast } from "@/components/toast";
-import { Alert, Button, Card, Field, Input, LinkButton, Loadable, PageHeader, Textarea } from "@/components/ui";
+import { Alert, Button, Card, Field, Input, LinkButton, Loadable, PageHeader, Select, Textarea } from "@/components/ui";
 import { api, ApiError, errorMessage, listOf } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { fmtMoney, fmtNumber } from "@/lib/format";
 import type { CaseDetail, Package } from "@/lib/types";
+import { REGION, SAMARQAND_DISTRICTS } from "@/lib/districts";
 import { useApi } from "@/lib/use-api";
 
 const TEXT_FIELDS = [
@@ -30,7 +31,7 @@ export default function NewCasePage() {
   const toast = useToast();
   const confirm = useConfirm();
   const packages = useApi<Package[] | { results?: Package[] }>("/packages");
-  const [values, setValues] = useState<Record<TextKey, string>>({ owner_full_name: "", owner_phone: "", name: "", region: "", district: "", mfy: "", address: "" });
+  const [values, setValues] = useState<Record<TextKey, string>>({ owner_full_name: "", owner_phone: "", name: "", region: REGION, district: "", mfy: "", address: "" });
   const [packageId, setPackageId] = useState<number | null>(null);
   const [conclusion, setConclusion] = useState("");
   const [coords, setCoords] = useState<Coords | null>(null);
@@ -92,6 +93,21 @@ export default function NewCasePage() {
         <Card className="grid gap-4 sm:grid-cols-2">
           {TEXT_FIELDS.map((field) => (
             <Field key={field.key} label={field.label} htmlFor={field.key} required={field.required} error={errors[field.key]} className={field.key === "address" ? "sm:col-span-2" : undefined}>
+              {field.key === "district" ? (
+                <Select
+                  id="district"
+                  value={values.district}
+                  onChange={(e) => setValues((prev) => ({ ...prev, district: e.target.value }))}
+                  invalid={!!errors.district}
+                >
+                  <option value="">— tanlang —</option>
+                  {SAMARQAND_DISTRICTS.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
               <Input
                 id={field.key}
                 value={values[field.key]}
@@ -101,6 +117,7 @@ export default function NewCasePage() {
                 autoComplete={"autoComplete" in field ? field.autoComplete : "off"}
                 placeholder={"placeholder" in field ? field.placeholder : undefined}
               />
+              )}
             </Field>
           ))}
           <Field label="Joylashuv (GPS)" required error={errors.gps ?? errors.latitude ?? errors.longitude} className="sm:col-span-2">

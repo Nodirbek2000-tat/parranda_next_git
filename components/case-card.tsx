@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { ChevronRight, Clock, MapPin } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { deadline } from "@/lib/format";
+import { deadline, fmtMoney, fmtNumber } from "@/lib/format";
 import { roleLabel } from "@/lib/roles";
 import { CASE_STATUS_LABELS, STAGE_STATUS_LABELS, stageDef } from "@/lib/stages";
-import type { CaseStage, CaseStatus, CaseSummary, StageStatus } from "@/lib/types";
+import type { CaseListStats, CaseStage, CaseStatus, CaseSummary, StageStatus } from "@/lib/types";
 import { Badge, type BadgeTone } from "./ui";
 
 export interface CurrentStage {
@@ -60,7 +60,64 @@ export function DeadlineText({ due, overdue, className }: { due: string | null |
   );
 }
 
-export function CaseCard({ item }: { item: CaseSummary }) {
+/** Days since the chicks were delivered: green → amber (last 10 days) → red (period over). */
+function dayTone(days: number, total: number): string {
+  if (days >= total) return "bg-danger-soft text-danger border-danger/30";
+  if (days >= total - 10) return "bg-warning-soft text-warning-ink border-warning/40";
+  return "bg-accent-soft text-primary border-accent/30";
+}
+
+function Stat({ icon, label, value, className }: { icon: string; label: string; value: string; className?: string }) {
+  return (
+    <span className={cn("flex min-w-0 items-center gap-1.5 rounded-xl border border-line bg-subtle/60 px-2.5 py-1.5", className)}>
+      <span aria-hidden>{icon}</span>
+      <span className="min-w-0">
+        <span className="block text-[10px] uppercase tracking-wide text-muted">{label}</span>
+        <span className="block truncate text-[13px] font-semibold tabular-nums">{value}</span>
+      </span>
+    </span>
+  );
+}
+
+/** Birds, days since delivery, feed, vet visits and (for managers) money — shown once the chicks are delivered. */
+export function CaseStats({ stats, showMoney }: { stats: CaseListStats; showMoney: boolean }) {
+  if (stats.days_since_delivery === null && stats.birds === null && !stats.total_cost) return null;
+  const feed = stats.feed.length ? stats.feed.map((f) => `${fmtNumber(f.qty)} ${f.unit}`).join(", ") : "—";
+  const birds =
+    stats.birds === null
+      ? "—"
+      : stats.birds_received !== null && stats.birds_received !== stats.birds
+        ? `${fmtNumber(stats.birds)} / ${fmtNumber(stats.birds_received)} bosh`
+        : `${fmtNumber(stats.birds)} bosh`;
+  return (
+    <div className="mt-2.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
+      <Stat icon="🐔" label="Parranda" value={birds} />
+      {stats.days_since_delivery !== null ? (
+        <Stat
+          icon="📅"
+          label="Yetkazilganiga"
+          value={`${stats.days_since_delivery}-kun / ${stats.growing_days}`}
+          className={dayTone(stats.days_since_delivery, stats.growing_days)}
+        />
+      ) : (
+        <Stat icon="📅" label="Yetkazilganiga" value="hali yo‘q" />
+      )}
+      <Stat icon="🌾" label="Olgan yemi" value={feed} />
+      <Stat icon="🩺" label="Veterinar" value={`${stats.vet_visits} ta ko‘rik`} />
+      {showMoney && <Stat icon="💸" label="Xarajat" value={fmtMoney(stats.total_cost)} />}
+      {showMoney && (
+        <Stat
+          icon="💰"
+          label={stats.revenue_is_estimate ? "Taxminiy daromad" : "Daromad"}
+          value={stats.revenue === null ? "—" : fmtMoney(stats.revenue)}
+          className={stats.profit !== null && stats.profit < 0 ? "text-danger" : undefined}
+        />
+      )}
+    </div>
+  );
+}
+
+export function CaseCard({ item, showMoney = false }: { item: CaseSummary; showMoney?: boolean }) {
   const stage = currentStage(item);
   const info = item.status === "IN_PROGRESS" ? deadline(stage.dueAt, stage.overdue) : null;
   const place = [item.region, item.district, item.mfy].filter(Boolean).join(", ");
@@ -97,6 +154,7 @@ export function CaseCard({ item }: { item: CaseSummary }) {
           </p>
         )}
         {info && <DeadlineText due={stage.dueAt} overdue={stage.overdue} className="mt-0.5" />}
+        {item.summary && <CaseStats stats={item.summary} showMoney={showMoney} />}
       </div>
       <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />
     </Link>
