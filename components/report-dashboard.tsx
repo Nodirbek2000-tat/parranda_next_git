@@ -109,7 +109,26 @@ export function DistrictCard({ geo, district, onDistrict }: { geo: GeoReport; di
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-semibold">Tumanlar kesimida xonadonlar soni</h2>
-          <p className="text-xs text-muted">Doiradagi raqam — xonadonlar. Rang qancha to‘q bo‘lsa, shuncha ko‘p. Tumanni bossangiz, hisobot shu tumanga filtrlanadi.</p>
+          <p className="text-xs text-muted">Tumanni bossangiz, butun hisobot shu tumanga filtrlanadi.</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+            <span className="flex items-center gap-1.5">
+              Kam
+              <span className="flex overflow-hidden rounded-sm" aria-hidden>
+                {["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"].map((c) => (
+                  <span key={c} className="h-2.5 w-5" style={{ background: c }} />
+                ))}
+              </span>
+              Ko‘p xonadon
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-5 rounded-sm bg-[#E4EAF1]" aria-hidden />
+              Xonadon yo‘q
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full border border-white bg-[#d03b3b]" aria-hidden />
+              Muddati o‘tgan bor
+            </span>
+          </div>
         </div>
         {selected && (
           <button type="button" onClick={() => onDistrict("")} className="rounded-lg border border-line px-2.5 py-1 text-xs font-medium hover:bg-subtle">
