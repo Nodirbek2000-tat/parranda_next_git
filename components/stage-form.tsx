@@ -68,6 +68,9 @@ export function StageForm({ detail, stage, def }: { detail: CaseDetail; stage: C
   const toast = useToast();
   const confirm = useConfirm();
   const [values, setValues] = useState<Values>(() => initialValues(def, stage));
+  // HR and Director stages are decisions: their "done" is the approval itself.
+  const isDecision = def.key === "hr" || def.key === "director";
+  const actionLabel = isDecision ? "Tasdiqlash" : "Bajarildi";
   const [note, setNote] = useState(stage.status === "RETURNED" ? (stage.note ?? "") : "");
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [docs, setDocs] = useState<UploadedDoc[]>([]);
@@ -117,11 +120,13 @@ export function StageForm({ detail, stage, def }: { detail: CaseDetail; stage: C
       return;
     }
     await confirm({
-      title: "Bosqichni topshirish",
-      message: def.approver
-        ? `«${stage.title || def.title}» bajarildi deb belgilanadi va tasdiqlashga yuboriladi.`
-        : `«${stage.title || def.title}» bajarildi deb belgilanadi va keyingi bosqich ochiladi.`,
-      confirmLabel: "Bajarildi",
+      title: isDecision ? "Tasdiqlash" : "Bosqichni topshirish",
+      message: isDecision
+        ? `«${stage.title || def.title}» tasdiqlanadi va keyingi bosqich ochiladi.`
+        : def.approver
+          ? `«${stage.title || def.title}» bajarildi deb belgilanadi va tasdiqlashga yuboriladi.`
+          : `«${stage.title || def.title}» bajarildi deb belgilanadi va keyingi bosqich ochiladi.`,
+      confirmLabel: actionLabel,
       onConfirm: async () => {
         try {
           await api.post(`/cases/${detail.id}/stages/${stage.number}/submit`, {
@@ -211,7 +216,7 @@ export function StageForm({ detail, stage, def }: { detail: CaseDetail; stage: C
       )}
       {formError && <Alert>{formError}</Alert>}
       <Button type="submit" icon={<CheckCheck className="size-4" aria-hidden />} className="w-full sm:w-auto sm:self-start">
-        Bajarildi
+        {actionLabel}
       </Button>
     </form>
   );
