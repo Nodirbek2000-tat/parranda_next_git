@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Circle, FileDown, MapPin, Phone, Play, ShieldCheck, Undo2, UserPlus, XCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Circle, FileDown, MapPin, Phone, Play, ShieldCheck, Trash2, Undo2, UserPlus, XCircle } from "lucide-react";
 import { api, apiDownload, errorMessage } from "@/lib/api";
 import { useMe } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { fmtDateTime, fmtMoney, personName } from "@/lib/format";
 import { effectiveRole, isAdmin, roleLabel } from "@/lib/roles";
+import { useDelete } from "@/lib/use-delete";
 import { dataLabel, resolveStageDef, stageDef, STAGES } from "@/lib/stages";
 import type { CaseDetail, CaseStage, Me, Photo, CaseDocument, StageEvent } from "@/lib/types";
 import { CaseStatusBadge, DeadlineText, StageStatusBadge } from "./case-card";
@@ -63,6 +65,8 @@ function permissions(detail: CaseDetail, stage: CaseStage | undefined, user: Me)
 
 export function CaseView({ detail, readOnly = false }: { detail: CaseDetail; readOnly?: boolean }) {
   const user = useMe();
+  const router = useRouter();
+  const deleteTwice = useDelete();
   const toast = useToast();
   const confirm = useConfirm();
   const [ownerAccount, setOwnerAccount] = useState<{ username: string; temp_password: string | null } | null>(null);
@@ -195,6 +199,25 @@ export function CaseView({ detail, readOnly = false }: { detail: CaseDetail; rea
           {!readOnly && isAdmin(user) && detail.status !== "REJECTED" && (detail.can?.owner_account ?? true) && (
             <Button variant="secondary" size="sm" onClick={createOwner} icon={<UserPlus className="size-4" aria-hidden />}>
               {detail.owner_user ? "Egasi paroli" : "Egasi akkaunti"}
+            </Button>
+          )}
+          {!readOnly && isAdmin(user) && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="text-danger"
+              icon={<Trash2 className="size-4" aria-hidden />}
+              onClick={() =>
+                deleteTwice({
+                  title: "Xonadonni o‘chirish",
+                  what: `${detail.code} — ${detail.owner_full_name || detail.name} ro‘yxatlardan olib tashlanadi. Bosqichlar tarixi saqlanadi.`,
+                  path: `/cases/${detail.id}`,
+                  done: "Xonadon o‘chirildi",
+                  after: () => router.replace("/cases"),
+                })
+              }
+            >
+              O‘chirish
             </Button>
           )}
         </div>

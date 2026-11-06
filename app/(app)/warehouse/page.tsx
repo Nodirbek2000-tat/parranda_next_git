@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ArrowDownToLine, ArrowUpFromLine, Package as PackageIcon, Pencil, Plus, Search } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Package as PackageIcon, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { useToast } from "@/components/toast";
 import { Alert, Badge, Button, Card, Empty, Field, IconButton, Input, Loadable, PageHeader, Select } from "@/components/ui";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { fmtDateTime, fmtMoney, fmtNumber, personName } from "@/lib/format";
 import type { Paged, Product, StockMove } from "@/lib/types";
 import { useApi, useDebounced } from "@/lib/use-api";
+import { useDelete } from "@/lib/use-delete";
 
 const UNITS = ["kg", "dona", "qop", "m", "m²", "litr"];
 const CATEGORIES: Record<string, string> = {
@@ -79,6 +80,7 @@ export default function WarehousePage() {
 }
 
 function ProductList({ products, onKirim, onEdit }: { products: Product[]; onKirim: (p: Product) => void; onEdit: (p: Product) => void }) {
+  const deleteTwice = useDelete();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const q = search.trim().toLowerCase();
@@ -128,6 +130,20 @@ function ProductList({ products, onKirim, onEdit }: { products: Product[]; onKir
                 </IconButton>
                 <IconButton label="Tahrirlash" onClick={() => onEdit(p)}>
                   <Pencil className="size-4" aria-hidden />
+                </IconButton>
+                <IconButton
+                  label="O‘chirish"
+                  className="text-danger"
+                  onClick={() =>
+                    deleteTwice({
+                      title: "Mahsulotni o‘chirish",
+                      what: `«${p.name}» ombor ro‘yxatidan olib tashlanadi. Kirim-chiqim tarixi saqlanadi.`,
+                      path: `/products/${p.id}`,
+                      done: "Mahsulot o‘chirildi",
+                    })
+                  }
+                >
+                  <Trash2 className="size-4" aria-hidden />
                 </IconButton>
               </Card>
             </li>

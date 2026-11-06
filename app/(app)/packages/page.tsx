@@ -11,6 +11,7 @@ import { fmtMoney, fmtNumber } from "@/lib/format";
 import { isAdmin } from "@/lib/roles";
 import type { Package, PackageItem, Paged, Product } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
+import { useDelete } from "@/lib/use-delete";
 
 function productIdOf(item: PackageItem): number | null {
   if (item.product_id) return item.product_id;
@@ -26,6 +27,7 @@ function itemLabel(item: PackageItem): { name: string; unit: string } {
 export default function PackagesPage() {
   const user = useMe();
   const admin = isAdmin(user);
+  const deleteTwice = useDelete();
   const packages = useApi<Paged<Package>>("/packages");
   const [editing, setEditing] = useState<Package | null>(null);
 
@@ -51,9 +53,25 @@ export default function PackagesPage() {
                       </p>
                     </div>
                     {admin && (
-                      <IconButton label="Tahrirlash" onClick={() => setEditing(pkg)}>
-                        <Pencil className="size-4" aria-hidden />
-                      </IconButton>
+                      <>
+                        <IconButton label="Tahrirlash" onClick={() => setEditing(pkg)}>
+                          <Pencil className="size-4" aria-hidden />
+                        </IconButton>
+                        <IconButton
+                          label="O‘chirish"
+                          className="text-danger"
+                          onClick={() =>
+                            deleteTwice({
+                              title: "Paketni o‘chirish",
+                              what: `«${pkg.name}» paketi ro‘yxatdan olib tashlanadi. Uni ishlatgan xonadonlar tarixi saqlanadi.`,
+                              path: `/packages/${pkg.id}`,
+                              done: "Paket o‘chirildi",
+                            })
+                          }
+                        >
+                          <Trash2 className="size-4" aria-hidden />
+                        </IconButton>
+                      </>
                     )}
                   </div>
                   {pkg.price ? <p className="text-lg font-semibold text-primary">{fmtMoney(pkg.price)}</p> : null}
