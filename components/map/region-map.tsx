@@ -9,10 +9,10 @@ import { cn } from "@/lib/cn";
 import { fmtNumber } from "@/lib/format";
 import type { GeoDistrict, GeoPoint } from "@/lib/reports";
 import { useMapGeneration } from "./leaflet-map";
-import { TONE_COLORS, toneOf } from "./tones";
+import { districtColor, TONE_COLORS, toneOf } from "./tones";
 
-const BLUE = "#1F6FB5";
-const RED = "#E3262B";
+const NAVY = "#0F3A6B";
+const CRITICAL = "#d03b3b";
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
@@ -20,17 +20,24 @@ function escapeHtml(value: string): string {
 
 /** District bubble: the number of households inside, the district name under it. */
 function districtIcon(d: GeoDistrict, selected: boolean, max: number) {
-  const size = d.total === 0 ? 26 : Math.round(30 + 22 * Math.sqrt(d.total / Math.max(max, 1)));
-  const fill = d.total === 0 ? "#AEB9C7" : selected ? RED : BLUE;
-  const ring = selected ? "#FFFFFF" : d.overdue > 0 ? "#D97706" : "#FFFFFF";
+  const size = d.total === 0 ? 18 : Math.round(28 + 22 * Math.sqrt(d.total / Math.max(max, 1)));
+  const { fill, ink } = districtColor(d.total, max);
+  const ring = selected ? NAVY : "#FFFFFF";
   const short = d.name.replace(/ tumani$/, "").replace(/ shahri$/, " sh.");
+  // a red dot marks a district with an overdue household (explained in the legend)
+  const badge = d.overdue > 0
+    ? `<span style="position:absolute;top:-2px;right:-2px;width:12px;height:12px;border-radius:9999px;background:${CRITICAL};border:2px solid #fff"></span>`
+    : "";
   const html =
     `<div style="display:flex;flex-direction:column;align-items:center;width:120px;cursor:pointer">` +
-    `<span style="display:flex;width:${size}px;height:${size}px;align-items:center;justify-content:center;border-radius:9999px;` +
-    `background:${fill};border:3px solid ${ring};color:#fff;font:700 ${size > 40 ? 15 : 13}px/1 system-ui,sans-serif;` +
-    `box-shadow:0 2px 6px rgb(15 58 107/.35)">${d.total}</span>` +
-    `<span style="margin-top:2px;padding:0 4px;border-radius:6px;background:rgb(255 255 255/.85);` +
-    `font:600 11px/1.35 system-ui,sans-serif;color:#15202D;white-space:nowrap">${escapeHtml(short)}</span></div>`;
+    `<span style="position:relative;display:flex;width:${size}px;height:${size}px;align-items:center;justify-content:center;border-radius:9999px;` +
+    `background:${fill};border:${selected ? 4 : 2}px solid ${ring};color:${ink};font:700 ${size > 40 ? 15 : 13}px/1 system-ui,sans-serif;` +
+    `box-shadow:0 2px 6px rgb(15 58 107/.3)">${d.total > 0 ? d.total : ""}${badge}</span>` +
+    (d.total > 0 || selected
+      ? `<span style="margin-top:2px;padding:0 4px;border-radius:6px;background:rgb(255 255 255/.85);` +
+        `font:600 11px/1.35 system-ui,sans-serif;color:#15202D;white-space:nowrap">${escapeHtml(short)}</span>`
+      : "") +
+    `</div>`;
   return divIcon({ className: "", html, iconSize: [120, size + 18], iconAnchor: [60, size / 2] });
 }
 

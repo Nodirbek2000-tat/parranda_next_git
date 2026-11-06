@@ -376,3 +376,112 @@ export function toGeo(data: unknown): GeoReport | null {
       .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)),
   };
 }
+
+export type Toifa = "green" | "yellow" | "red";
+
+export interface MahallaRow {
+  district: string;
+  mfy: string;
+  green: number;
+  yellow: number;
+  red: number;
+  total: number;
+}
+
+export interface LatestRow {
+  id: number;
+  code: string;
+  owner: string;
+  mfy: string;
+  district: string;
+  status: string;
+  currentStage: number;
+  stageTitle: string;
+  stageStatus: string;
+  stageOverdue: boolean;
+  birds: number | null;
+  days: number | null;
+  growingDays: number | null;
+  feed: { unit: string; qty: number }[];
+  vetVisits: number;
+  totalCost: number;
+  revenue: number | null;
+  profit: number | null;
+  revenueIsEstimate: boolean;
+  toifa: Toifa;
+}
+
+export interface Dashboard {
+  kpi: { total: number; newThisMonth: number; inProgress: number; growing: number; birdsNow: number; done: number; overdue: number; totalCost: number };
+  toifa: { key: Toifa; label: string; count: number }[];
+  monthly: { month: string; created: number; delivered: number; growingDone: number; done: number }[];
+  estimatedRevenue: number;
+  avgGrowingDays: number | null;
+  latest: LatestRow[];
+}
+
+const TOIFAS: readonly Toifa[] = ["green", "yellow", "red"];
+const asToifa = (value: unknown): Toifa => (TOIFAS.includes(value as Toifa) ? (value as Toifa) : "green");
+const listOf = (value: unknown): Raw[] => (Array.isArray(value) ? (value as unknown[]).map(obj).filter((r): r is Raw => r !== null) : []);
+
+export function toMahallas(data: unknown): MahallaRow[] {
+  return listOf(obj(obj(data)?.geo)?.mahallas).map((r) => ({
+    district: str(r, "district"),
+    mfy: str(r, "mfy") || "—",
+    green: num(r, "green") ?? 0,
+    yellow: num(r, "yellow") ?? 0,
+    red: num(r, "red") ?? 0,
+    total: num(r, "total") ?? 0,
+  }));
+}
+
+export function toDashboard(data: unknown): Dashboard | null {
+  const d = obj(obj(data)?.dashboard);
+  if (!d) return null;
+  const k = obj(d.kpi);
+  const extra = obj(d.finance_extra);
+  return {
+    kpi: {
+      total: num(k, "total") ?? 0,
+      newThisMonth: num(k, "new_this_month") ?? 0,
+      inProgress: num(k, "in_progress") ?? 0,
+      growing: num(k, "growing") ?? 0,
+      birdsNow: num(k, "birds_now") ?? 0,
+      done: num(k, "done") ?? 0,
+      overdue: num(k, "overdue") ?? 0,
+      totalCost: num(k, "total_cost") ?? 0,
+    },
+    toifa: listOf(d.toifa).map((r) => ({ key: asToifa(r.key), label: str(r, "label"), count: num(r, "count") ?? 0 })),
+    monthly: listOf(d.monthly).map((r) => ({
+      month: str(r, "month"),
+      created: num(r, "created") ?? 0,
+      delivered: num(r, "delivered") ?? 0,
+      growingDone: num(r, "growing_done") ?? 0,
+      done: num(r, "done") ?? 0,
+    })),
+    estimatedRevenue: num(extra, "estimated_revenue_in_progress") ?? 0,
+    avgGrowingDays: num(extra, "avg_growing_days"),
+    latest: listOf(d.latest).map((r) => ({
+      id: num(r, "id") ?? 0,
+      code: str(r, "code"),
+      owner: str(r, "owner_full_name"),
+      mfy: str(r, "mfy"),
+      district: str(r, "district"),
+      status: str(r, "status"),
+      currentStage: num(r, "current_stage") ?? 0,
+      stageTitle: str(r, "stage_title"),
+      stageStatus: str(r, "stage_status"),
+      stageOverdue: r.stage_overdue === true,
+      birds: num(r, "birds"),
+      days: num(r, "days_since_delivery"),
+      growingDays: num(r, "growing_days"),
+      feed: listOf(r.feed).map((f) => ({ unit: str(f, "unit"), qty: num(f, "qty") ?? 0 })),
+      vetVisits: num(r, "vet_visits") ?? 0,
+      totalCost: num(r, "total_cost") ?? 0,
+      revenue: num(r, "revenue"),
+      profit: num(r, "profit"),
+      revenueIsEstimate: r.revenue_is_estimate !== false,
+      toifa: asToifa(r.toifa),
+    })),
+  };
+}
